@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.9"
+        android:scaleY="0.9"
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- Rounded badge background -->
+        <path
+            android:fillColor="#2563EB"
+            android:pathData="M54,18 C73.88,18 90,34.12 90,54 C90,73.88 73.88,90 54,90 C34.12,90 18,73.88 18,54 C18,34.12 34.12,18 54,18 Z" />
+
+        <!-- Accent Gold Star Badge -->
+        <path
+            android:fillColor="#F59E0B"
+            android:pathData="M72,28 L74.5,33.5 L80.5,34.2 L76,38.3 L77.2,44.2 L72,41.2 L66.8,44.2 L68,38.3 L63.5,34.2 L69.5,33.5 Z" />
+
+        <!-- Stylized 'M' Letter / Diary Book Shape -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M34,36 L44,36 L54,52 L64,36 L74,36 L74,72 L64,72 L64,52 L56.5,64 L51.5,64 L44,52 L44,72 L34,72 Z" />
+    </group>
+</vector>
