@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
@@ -27,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.mesh.expressive.ui.theme.*
 import ru.mesh.expressive.ui.viewmodel.MeshMainViewModel
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,10 +41,17 @@ fun SettingsScreen(
     val profile by viewModel.studentProfile.collectAsState()
     val isCompactSchedule by viewModel.isCompactSchedule.collectAsState()
     val showWeightedGpa by viewModel.showWeightedGpa.collectAsState()
+    val hideCompletedQuests by viewModel.hideCompletedQuests.collectAsState()
+    val enableSpringPhysics by viewModel.enableSpringPhysics.collectAsState()
+    val hideEmptyScheduleDays by viewModel.hideEmptyScheduleDays.collectAsState()
+    val gpaTargetScore by viewModel.gpaTargetScore.collectAsState()
+    val autoRefreshMinutes by viewModel.autoRefreshMinutes.collectAsState()
     val gamification by viewModel.gamificationProfile.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     var showTokenDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showClassInfoDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -54,7 +61,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
     ) {
-        // 1. Account Card
+        // 1. Account & Profile Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -137,18 +144,22 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Токен авторизации (JWT)",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                            )
+                            TextButton(
+                                onClick = { showClassInfoDialog = true },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Данные класса", style = MaterialTheme.typography.labelSmall)
+                            }
+
                             TextButton(
                                 onClick = { showTokenDialog = true },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Показать токен", style = MaterialTheme.typography.labelSmall)
+                                Text("Токен (JWT)", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -161,9 +172,7 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ExpressiveCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = ScoreGreenContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = ScoreGreenContainer)
             ) {
                 Row(
                     modifier = Modifier
@@ -196,7 +205,7 @@ fun SettingsScreen(
                             color = ScoreGreen
                         )
                         Text(
-                            text = "Все трекеры, геолокация и аналитика вырезаны",
+                            text = "0 трекеров, 0 фонового GPS, прямой TLS к school.mos.ru",
                             style = MaterialTheme.typography.bodySmall,
                             color = ScoreGreen.copy(alpha = 0.9f)
                         )
@@ -218,12 +227,10 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ExpressiveCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    // Monet Dynamic Theme Switch
+                    // Monet Dynamic Theme
                     SettingsToggleRow(
                         icon = Icons.Default.Palette,
                         title = "Monet Dynamic Color",
@@ -234,18 +241,18 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                    // Weighted GPA Switch
+                    // Spring Physics
                     SettingsToggleRow(
-                        icon = Icons.Default.Calculate,
-                        title = "Средневзвешенный балл",
-                        subtitle = "Учитывать веса контрольных и практических работ",
-                        isChecked = showWeightedGpa,
-                        onCheckedChange = { viewModel.toggleShowWeightedGpa(it) }
+                        icon = Icons.Default.TouchApp,
+                        title = "Пружинная физика анимаций",
+                        subtitle = "Эффект упругости Material Expressive при нажатиях",
+                        isChecked = enableSpringPhysics,
+                        onCheckedChange = { viewModel.toggleEnableSpringPhysics(it) }
                     )
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                    // Compact Schedule Switch
+                    // Compact Schedule
                     SettingsToggleRow(
                         icon = Icons.Default.ViewAgenda,
                         title = "Компактный вид расписания",
@@ -253,11 +260,80 @@ fun SettingsScreen(
                         isChecked = isCompactSchedule,
                         onCheckedChange = { viewModel.toggleCompactSchedule(it) }
                     )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Hide Empty Schedule Days
+                    SettingsToggleRow(
+                        icon = Icons.Default.EventBusy,
+                        title = "Скрывать пустые дни",
+                        subtitle = "Не показывать карточки дней без запланированных уроков",
+                        isChecked = hideEmptyScheduleDays,
+                        onCheckedChange = { viewModel.toggleHideEmptyScheduleDays(it) }
+                    )
                 }
             }
         }
 
-        // 4. Section: Звезды и Автоматизация
+        // 4. Section: Оценки и Успеваемость
+        item {
+            Text(
+                text = "Оценки и Цели успеваемости",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveCardShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Weighted GPA
+                    SettingsToggleRow(
+                        icon = Icons.Default.Calculate,
+                        title = "Средневзвешенный балл",
+                        subtitle = "Учитывать коэффициенты веса контрольных и экзаменов",
+                        isChecked = showWeightedGpa,
+                        onCheckedChange = { viewModel.toggleShowWeightedGpa(it) }
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Target GPA Slider
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Grade, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Text("Целевой средний балл", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            }
+                            Text(
+                                text = String.format(java.util.Locale.US, "%.2f", gpaTargetScore),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Slider(
+                            value = gpaTargetScore,
+                            onValueChange = { viewModel.setGpaTargetScore((it * 100).roundToInt() / 100f) },
+                            valueRange = 4.00f..5.00f,
+                            steps = 9
+                        )
+                    }
+                }
+            }
+        }
+
+        // 5. Section: Звезды и Автоматизация
         item {
             Text(
                 text = "Звезды и Автоматизация",
@@ -270,24 +346,90 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ExpressiveCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     // Infinite Stars Override
                     SettingsToggleRow(
                         icon = Icons.Default.Star,
                         title = "Режим бесконечных звезд",
-                        subtitle = "Разблокирует все визуальные награды и темы (Dev)",
+                        subtitle = "Разблокирует все визуальные награды профиля (Dev)",
                         isChecked = gamification.infiniteStarsOverride,
                         onCheckedChange = { viewModel.toggleInfiniteStars(it) }
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Hide Completed Quests
+                    SettingsToggleRow(
+                        icon = Icons.Default.CheckCircleOutline,
+                        title = "Скрывать сданные задания",
+                        subtitle = "Оставлять в списке только активные задания за звезды",
+                        isChecked = hideCompletedQuests,
+                        onCheckedChange = { viewModel.toggleHideCompletedQuests(it) }
                     )
                 }
             }
         }
 
-        // 5. Section: Аудит безопасности
+        // 6. Section: Синхронизация и Сеть
+        item {
+            Text(
+                text = "Синхронизация данных",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveCardShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text("Период авто-обновления", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text("Интервал актуализации данных", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        Surface(
+                            shape = PillShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            Text(
+                                text = "$autoRefreshMinutes мин",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { viewModel.refreshData() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = PillShape,
+                        enabled = !isRefreshing
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (isRefreshing) "Обновление..." else "Принудительно обновить данные сейчас")
+                    }
+                }
+            }
+        }
+
+        // 7. Section: Аудит безопасности
         item {
             Text(
                 text = "Аудит трекеров и слежки",
@@ -300,9 +442,7 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ExpressiveCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -337,7 +477,7 @@ fun SettingsScreen(
             }
         }
 
-        // 6. Section: Сброс и Очистка
+        // 8. Section: Сброс и Очистка
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -380,14 +520,12 @@ fun SettingsScreen(
             }
         }
 
-        // 7. About App
+        // 9. About App
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ExpressiveCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
@@ -397,7 +535,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Версия 1.2.0 • Material Design 3 Expressive • Open Source",
+                        text = "Версия 1.3.0 • Material Design 3 Expressive • Open Source",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -423,6 +561,39 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    if (showClassInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showClassInfoDialog = false },
+            icon = { Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)) },
+            title = { Text("Параметры класса", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Класс: ${profile.className}", fontWeight = FontWeight.SemiBold)
+                    Text("Class Unit ID: ${profile.classUnitId}", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    Text("Class UID: ${profile.classUid}", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    Text("Contingent GUID: ${profile.contingentGuid}", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(profile.classUid))
+                        Toast.makeText(context, "Class UID скопирован", Toast.LENGTH_SHORT).show()
+                        showClassInfoDialog = false
+                    },
+                    shape = PillShape
+                ) {
+                    Text("Скопировать Class UID")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClassInfoDialog = false }) {
+                    Text("Закрыть")
+                }
+            }
+        )
     }
 
     if (showTokenDialog) {

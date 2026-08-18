@@ -67,6 +67,7 @@ fun MeshMainApp(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val profile by viewModel.studentProfile.collectAsState()
+    val classmates by viewModel.classmates.collectAsState()
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -159,8 +160,17 @@ fun MeshMainApp(
                     }
                 )
                 DrawerMenuItem(
+                    icon = Icons.Default.Groups,
+                    label = "Мой класс (${if (classmates.isNotEmpty()) "${classmates.size}" else profile.className})",
+                    isSelected = currentTab == MainTab.CLASSMATES,
+                    onClick = {
+                        viewModel.selectTab(MainTab.CLASSMATES)
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+                DrawerMenuItem(
                     icon = Icons.Default.EmojiEvents,
-                    label = "Рейтинг класса",
+                    label = "Рейтинг успеваемости",
                     isSelected = currentTab == MainTab.RATING,
                     onClick = {
                         viewModel.selectTab(MainTab.RATING)
@@ -218,6 +228,7 @@ fun MeshMainApp(
                                     MainTab.HOMEWORK -> "Задания"
                                     MainTab.MARKS -> "Оценки"
                                     MainTab.GIFTS -> "Подарки и Звезды"
+                                    MainTab.CLASSMATES -> "Мой класс"
                                     MainTab.RATING -> "Рейтинг"
                                     MainTab.ATTENDANCE -> "Посещаемость"
                                     MainTab.MEALS -> "Москвёнок"
@@ -234,10 +245,10 @@ fun MeshMainApp(
                             }
                         },
                         actions = {
-                            IconButton(onClick = { viewModel.selectTab(MainTab.AUTH) }) {
+                            IconButton(onClick = { viewModel.selectTab(MainTab.CLASSMATES) }) {
                                 Icon(
-                                    imageVector = if (viewModel.isLoggedIn) Icons.Default.AccountCircle else Icons.Default.Login,
-                                    contentDescription = "Аккаунт"
+                                    imageVector = Icons.Default.Groups,
+                                    contentDescription = "Мой класс"
                                 )
                             }
                             IconButton(onClick = { viewModel.selectTab(MainTab.SETTINGS) }) {
@@ -305,6 +316,7 @@ fun MeshMainApp(
                         MainTab.HOMEWORK -> HomeworkScreen(viewModel = viewModel)
                         MainTab.MARKS -> MarksScreen(viewModel = viewModel)
                         MainTab.GIFTS -> GiftsScreen(viewModel = viewModel)
+                        MainTab.CLASSMATES -> ClassmatesScreen(viewModel = viewModel)
                         MainTab.RATING -> RatingScreen(viewModel = viewModel)
                         MainTab.ATTENDANCE -> AttendanceScreen(viewModel = viewModel)
                         MainTab.MEALS -> MealsScreen(viewModel = viewModel)

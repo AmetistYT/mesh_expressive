@@ -539,7 +539,7 @@ fun GiftsScreen(viewModel: MeshMainViewModel) {
                                             color = if (leader.isCurrentUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "Уровень ${leader.level} • ${leader.className}",
+                                            text = if (leader.gamificationId.isNotEmpty()) "ID: ${leader.gamificationId} • ${leader.className}" else leader.className,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

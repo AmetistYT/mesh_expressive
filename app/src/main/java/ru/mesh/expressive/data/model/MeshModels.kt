@@ -9,6 +9,9 @@ data class StudentProfile(
     val id: String = "17486681",
     val personId: Long = 2778403L,
     val contingentGuid: String = "3473f068-8ec0-47a1-920a-a18e75d6c389",
+    val classUid: String = "ba95ea86-d870-4924-9345-1b9c021c82f6",
+    val classUnitId: Long = 2073368L,
+    val classLevelId: Int = 7,
     val firstName: String = "Семён",
     val lastName: String = "Софель",
     val middleName: String = "Максимович",
@@ -93,7 +96,7 @@ data class GamificationProfile(
     val coinsCount: Int = 5,
 
     @SerializedName("spentPoints")
-    val coinsSpent: Int = 0,
+    val coinsSpent: Int = 530,
 
     @SerializedName("level")
     val level: Int = 1,
@@ -110,14 +113,105 @@ data class GamificationProfile(
 )
 
 /**
- * Лидер в рейтинге щедрости (по потраченным звездам)
+ * Одноклассник (Мой класс)
+ */
+data class ClassmateItem(
+    val profileId: Long,
+    val gamificationId: String,
+    val firstName: String,
+    val lastName: String,
+    val rank: Int,
+    val spentStars: Int,
+    val isBirthdayToday: Boolean = false,
+    val isCurrentUser: Boolean = false
+)
+
+/**
+ * DTO для POST /persons/rating
+ */
+data class PersonsRatingRequestBody(
+    @SerializedName("filters")
+    val filters: ClassUidFilter
+)
+
+data class ClassUidFilter(
+    @SerializedName("classUid")
+    val classUid: String
+)
+
+data class PersonsRatingResponse(
+    @SerializedName("totalItems")
+    val totalItems: Int = 0,
+    @SerializedName("pageNumber")
+    val pageNumber: Int = 1,
+    @SerializedName("pageSize")
+    val pageSize: Int = 50,
+    @SerializedName("content")
+    val content: List<PersonRatingItem> = emptyList()
+)
+
+data class PersonRatingItem(
+    @SerializedName("profileId")
+    val profileId: Long,
+    @SerializedName("gamificationId")
+    val gamificationId: String,
+    @SerializedName("rating")
+    val rating: Int,
+    @SerializedName("spentPoints")
+    val spentPoints: Int,
+    @SerializedName("firstName")
+    val firstName: String,
+    @SerializedName("lastName")
+    val lastName: String,
+    @SerializedName("isReceiveRewardsAllowed")
+    val isReceiveRewardsAllowed: Boolean = true,
+    @SerializedName("isShowRewardsAllowed")
+    val isShowRewardsAllowed: Boolean = true
+)
+
+/**
+ * DTO для POST /persons/search
+ */
+data class PersonsSearchFilterBody(
+    @SerializedName("filters")
+    val filters: ClassUidFilter,
+    @SerializedName("sorting")
+    val sorting: PersonsSorting = PersonsSorting()
+)
+
+data class PersonsSorting(
+    @SerializedName("orderBy")
+    val orderBy: String = "firstName",
+    @SerializedName("direction")
+    val direction: String = "ASC"
+)
+
+data class PersonSearchItem(
+    @SerializedName("id")
+    val id: Long,
+    @SerializedName("gamificationId")
+    val gamificationId: String,
+    @SerializedName("firstName")
+    val firstName: String,
+    @SerializedName("lastName")
+    val lastName: String,
+    @SerializedName("isReceiveRewardsAllowed")
+    val isReceiveRewardsAllowed: Boolean = true,
+    @SerializedName("isShowRewardsAllowed")
+    val isShowRewardsAllowed: Boolean = true,
+    @SerializedName("isBirthdayToday")
+    val isBirthdayToday: Boolean = false
+)
+
+/**
+ * Лидер в рейтинге щедрости
  */
 data class StarLeaderItem(
     val rank: Int,
     val name: String,
     val className: String,
     val spentStars: Int,
-    val level: Int,
+    val gamificationId: String = "",
     val isCurrentUser: Boolean = false
 )
 

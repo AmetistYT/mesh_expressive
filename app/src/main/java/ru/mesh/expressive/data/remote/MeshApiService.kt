@@ -1,5 +1,6 @@
 package ru.mesh.expressive.data.remote
 
+import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -11,32 +12,44 @@ import ru.mesh.expressive.data.model.*
 import java.util.concurrent.TimeUnit
 
 data class WorksSearchRequest(
-    val profileId: String = "",
-    val filters: Map<String, Any> = emptyMap(),
-    val pagination: Pagination = Pagination()
+    @SerializedName("profileId")
+    val profileId: String = "275590",
+    @SerializedName("pagination")
+    val pagination: PaginationDTO = PaginationDTO(),
+    @SerializedName("filters")
+    val filters: WorksFiltersDTO = WorksFiltersDTO()
 )
 
-data class Pagination(
+data class PaginationDTO(
+    @SerializedName("pageNumber")
     val pageNumber: Int = 1,
-    val pageSize: Int = 50
+    @SerializedName("pageSize")
+    val pageSize: Int = 20
+)
+
+data class WorksFiltersDTO(
+    @SerializedName("states")
+    val states: List<String> = listOf("ACCESSIBLE")
 )
 
 data class WorksSearchResponse(
+    @SerializedName("content")
     val items: List<WorkItem> = emptyList()
 )
 
 data class RewardsSearchResponse(
+    @SerializedName("content")
     val items: List<RewardItem> = emptyList()
 )
 
 data class WebProfileResponse(
     @SerializedName("profile")
-    val profile: WebProfileData? = null,
+    val profile: WebUserProfile? = null,
     @SerializedName("children")
     val children: List<WebChildData> = emptyList()
 )
 
-data class WebProfileData(
+data class WebUserProfile(
     @SerializedName("id")
     val id: Long? = null,
     @SerializedName("first_name")
@@ -44,9 +57,7 @@ data class WebProfileData(
     @SerializedName("last_name")
     val lastName: String? = null,
     @SerializedName("middle_name")
-    val middleName: String? = null,
-    @SerializedName("snils")
-    val snils: String? = null
+    val middleName: String? = null
 )
 
 data class WebChildData(
@@ -60,6 +71,12 @@ data class WebChildData(
     val middleName: String? = null,
     @SerializedName("class_name")
     val className: String? = null,
+    @SerializedName("class_uid")
+    val classUid: String? = null,
+    @SerializedName("class_unit_id")
+    val classUnitId: Long? = null,
+    @SerializedName("class_level_id")
+    val classLevelId: Int? = null,
     @SerializedName("school")
     val school: WebSchoolData? = null,
     @SerializedName("contingent_guid")
@@ -208,6 +225,24 @@ interface MeshGamificationApi {
         @Header("X-Mes-Subsystem") subsystem: String = "familymp",
         @Header("client-type") clientType: String = "diary-mobile"
     ): Response<RewardsSearchResponse>
+
+    @POST("persons/rating")
+    suspend fun getPersonsRating(
+        @Header("Authorization") token: String,
+        @Header("Profile-id") profileId: Long,
+        @Header("X-Mes-Subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Body request: PersonsRatingRequestBody
+    ): Response<PersonsRatingResponse>
+
+    @POST("persons/search")
+    suspend fun getPersonsSearch(
+        @Header("Authorization") token: String,
+        @Header("Profile-id") profileId: Long,
+        @Header("X-Mes-Subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Body request: PersonsSearchFilterBody
+    ): Response<List<PersonSearchItem>>
 }
 
 interface MeshMealsApi {
@@ -217,24 +252,29 @@ interface MeshMealsApi {
         @Header("Profile-id") profileId: Long,
         @Header("X-Mes-Subsystem") subsystem: String = "familymp",
         @Header("client-type") clientType: String = "diary-mobile",
-        @Query("clientIds") clientIds: String
+        @Query("clientIds", encoded = true) clientIds: String
     ): Response<List<ClientBalanceResponse>>
 
-    @GET("day-balance-info/v2")
+    @GET("clients/{clientPersonId}/balance-info/day")
     suspend fun getDayBalanceInfo(
         @Header("Authorization") token: String,
         @Header("Profile-id") profileId: Long,
         @Header("X-Mes-Subsystem") subsystem: String = "familymp",
         @Header("client-type") clientType: String = "diary-mobile",
-        @Query("person_id") personId: String,
-        @Query("from") from: String,
-        @Query("limit") limit: Int = 30
+        @Path("clientPersonId") clientPersonId: String,
+        @Query("from") fromDate: String,
+        @Query("limit") limit: Int = 20
     ): Response<DayBalanceResponse>
 }
 
 object MeshNetworkClient {
+    private const val BASE_FAMILY_WEB = "https://school.mos.ru/api/family/web/v1/"
+    private const val BASE_GAMIFICATION = "https://school.mos.ru/api/gamification/v1/"
+    private const val BASE_RATING = "https://school.mos.ru/api/ej/rating/v1/"
+    private const val BASE_MEALS = "https://school.mos.ru/api/food/meals/v3/"
+
     private val logging = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.HEADERS
+        level = HttpLoggingInterceptor.Level.BASIC
     }
 
     private val okHttpClient = OkHttpClient.Builder()
@@ -243,38 +283,42 @@ object MeshNetworkClient {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    private val gson = GsonBuilder()
+        .setLenient()
+        .create()
+
     val familyWebApi: MeshFamilyWebApi by lazy {
         Retrofit.Builder()
-            .baseUrl("https://school.mos.ru/api/family/web/v1/")
+            .baseUrl(BASE_FAMILY_WEB)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(MeshFamilyWebApi::class.java)
     }
 
-    val ratingApi: MeshRatingApi by lazy {
-        Retrofit.Builder()
-            .baseUrl("https://school.mos.ru/api/ej/rating/v1/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(MeshRatingApi::class.java)
-    }
-
     val gamificationApi: MeshGamificationApi by lazy {
         Retrofit.Builder()
-            .baseUrl("https://school.mos.ru/api/gamification/v1/")
+            .baseUrl(BASE_GAMIFICATION)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(MeshGamificationApi::class.java)
     }
 
+    val ratingApi: MeshRatingApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_RATING)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(MeshRatingApi::class.java)
+    }
+
     val mealsApi: MeshMealsApi by lazy {
         Retrofit.Builder()
-            .baseUrl("https://school.mos.ru/api/food/meals/v3/")
+            .baseUrl(BASE_MEALS)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(MeshMealsApi::class.java)
     }

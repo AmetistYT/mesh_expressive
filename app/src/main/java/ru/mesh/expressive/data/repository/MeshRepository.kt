@@ -7,8 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import ru.mesh.expressive.data.local.SessionManager
 import ru.mesh.expressive.data.model.*
-import ru.mesh.expressive.data.remote.MeshNetworkClient
-import ru.mesh.expressive.data.remote.WorksSearchRequest
+import ru.mesh.expressive.data.remote.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -26,6 +25,9 @@ class MeshRepository(private val sessionManager: SessionManager) {
             id = "17486681",
             personId = 2778403L,
             contingentGuid = "3473f068-8ec0-47a1-920a-a18e75d6c389",
+            classUid = sessionManager.classUid,
+            classUnitId = sessionManager.classUnitId,
+            classLevelId = 7,
             firstName = "Семён",
             lastName = "Софель",
             middleName = "Максимович",
@@ -53,7 +55,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
             id = 275590L,
             gamificationId = "AAE75590",
             coinsCount = if (sessionManager.infiniteStarsOverride) 999999999 else 5,
-            coinsSpent = 0,
+            coinsSpent = 530,
             level = 1,
             currentXp = 0,
             nextLevelXp = 1000,
@@ -65,6 +67,9 @@ class MeshRepository(private val sessionManager: SessionManager) {
 
     private val _starLeaders = MutableStateFlow<List<StarLeaderItem>>(emptyList())
     val starLeaders: StateFlow<List<StarLeaderItem>> = _starLeaders.asStateFlow()
+
+    private val _classmates = MutableStateFlow<List<ClassmateItem>>(emptyList())
+    val classmates: StateFlow<List<ClassmateItem>> = _classmates.asStateFlow()
 
     private val _rewards = MutableStateFlow<List<RewardItem>>(emptyList())
     val rewards: StateFlow<List<RewardItem>> = _rewards.asStateFlow()
@@ -103,32 +108,6 @@ class MeshRepository(private val sessionManager: SessionManager) {
         fetchRemoteData()
     }
 
-    private fun updateStarLeadersList(spentStars: Int) {
-        if (spentStars > 0) {
-            _starLeaders.value = listOf(
-                StarLeaderItem(
-                    rank = 1,
-                    name = "${_studentProfile.value.firstName} ${_studentProfile.value.lastName} (Вы)",
-                    className = _studentProfile.value.className,
-                    spentStars = spentStars,
-                    level = _gamificationProfile.value.level,
-                    isCurrentUser = true
-                )
-            )
-        } else {
-            _starLeaders.value = listOf(
-                StarLeaderItem(
-                    rank = 1,
-                    name = "${_studentProfile.value.firstName} ${_studentProfile.value.lastName} (Вы)",
-                    className = _studentProfile.value.className,
-                    spentStars = 0,
-                    level = _gamificationProfile.value.level,
-                    isCurrentUser = true
-                )
-            )
-        }
-    }
-
     suspend fun fetchRemoteData() = withContext(Dispatchers.IO) {
         val rawToken = sessionManager.authToken ?: return@withContext
         val cleanToken = if (rawToken.startsWith("Bearer ")) rawToken.substring(7) else rawToken
@@ -145,9 +124,17 @@ class MeshRepository(private val sessionManager: SessionManager) {
                 val child = body.children.firstOrNull()
                 val prof = body.profile
                 if (child != null) {
+                    val cUid = child.classUid ?: _studentProfile.value.classUid
+                    val cUnitId = child.classUnitId ?: _studentProfile.value.classUnitId
+                    sessionManager.classUid = cUid
+                    sessionManager.classUnitId = cUnitId
+
                     _studentProfile.value = _studentProfile.value.copy(
                         id = child.id?.toString() ?: _studentProfile.value.id,
                         contingentGuid = child.contingentGuid ?: _studentProfile.value.contingentGuid,
+                        classUid = cUid,
+                        classUnitId = cUnitId,
+                        classLevelId = child.classLevelId ?: _studentProfile.value.classLevelId,
                         firstName = child.firstName ?: _studentProfile.value.firstName,
                         lastName = child.lastName ?: _studentProfile.value.lastName,
                         middleName = child.middleName ?: _studentProfile.value.middleName,
@@ -166,6 +153,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
         } catch (_: Exception) {}
 
         val activeGuid = _studentProfile.value.contingentGuid
+        val activeClassUid = _studentProfile.value.classUid
 
         try {
             // 2. Геймификация и Звезды
@@ -179,9 +167,58 @@ class MeshRepository(private val sessionManager: SessionManager) {
                     coinsCount = if (sessionManager.infiniteStarsOverride) 999999999 else g.coinsCount,
                     dailyGiftAvailable = false
                 )
-                updateStarLeadersList(g.coinsSpent)
-            } else {
-                updateStarLeadersList(_gamificationProfile.value.coinsSpent)
+            }
+
+            // 2.1 Реальный рейтинг щедрости (POST /persons/rating)
+            val ratingResp = MeshNetworkClient.gamificationApi.getPersonsRating(
+                bearerToken, profileId, "familymp", "diary-mobile",
+                PersonsRatingRequestBody(filters = ClassUidFilter(classUid = activeClassUid))
+            )
+
+            // 2.2 Поиск одноклассников (POST /persons/search)
+            val searchResp = MeshNetworkClient.gamificationApi.getPersonsSearch(
+                bearerToken, profileId, "familymp", "diary-mobile",
+                PersonsSearchFilterBody(filters = ClassUidFilter(classUid = activeClassUid))
+            )
+
+            val birthdayMap = mutableMapOf<String, Boolean>()
+            if (searchResp.isSuccessful && searchResp.body() != null) {
+                searchResp.body()!!.forEach {
+                    birthdayMap[it.gamificationId] = it.isBirthdayToday
+                }
+            }
+
+            if (ratingResp.isSuccessful && ratingResp.body() != null && ratingResp.body()!!.content.isNotEmpty()) {
+                val items = ratingResp.body()!!.content
+                val myGamifId = _gamificationProfile.value.gamificationId ?: "AAE75590"
+
+                val leadersList = items.map { item ->
+                    val isMe = item.gamificationId == myGamifId || item.firstName == _studentProfile.value.firstName
+                    StarLeaderItem(
+                        rank = item.rating,
+                        name = if (isMe) "${item.firstName} ${item.lastName} (Вы)" else "${item.firstName} ${item.lastName}.",
+                        className = _studentProfile.value.className,
+                        spentStars = item.spentPoints,
+                        gamificationId = item.gamificationId,
+                        isCurrentUser = isMe
+                    )
+                }
+                _starLeaders.value = leadersList
+
+                val classmatesList = items.map { item ->
+                    val isMe = item.gamificationId == myGamifId || item.firstName == _studentProfile.value.firstName
+                    ClassmateItem(
+                        profileId = item.profileId,
+                        gamificationId = item.gamificationId,
+                        firstName = item.firstName,
+                        lastName = item.lastName,
+                        rank = item.rating,
+                        spentStars = item.spentPoints,
+                        isBirthdayToday = birthdayMap[item.gamificationId] == true,
+                        isCurrentUser = isMe
+                    )
+                }
+                _classmates.value = classmatesList
             }
 
             val gamifId = _gamificationProfile.value.id?.toString() ?: profileId.toString()
@@ -232,7 +269,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
         try {
             // 4. Рейтинг успеваемости
             val ratingResp = MeshNetworkClient.ratingApi.getClassRank(
-                bearerToken, "familymp", "mobile", activeGuid, 2073368L, todayStr
+                bearerToken, "familymp", "mobile", activeGuid, _studentProfile.value.classUnitId, todayStr
             )
             if (ratingResp.isSuccessful && ratingResp.body() != null) {
                 _ratingInfo.value = ratingResp.body()!!
@@ -381,7 +418,6 @@ class MeshRepository(private val sessionManager: SessionManager) {
                     coinsSpent = newSpent
                 )
             }
-            updateStarLeadersList(newSpent)
             _rewards.value = _rewards.value.map {
                 if (it.id == id) it.copy(isUnlocked = true) else it
             }
@@ -390,17 +426,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
 
     fun logout() {
         sessionManager.logout()
-        _studentProfile.value = StudentProfile(
-            id = "17486681",
-            personId = 2778403L,
-            contingentGuid = "3473f068-8ec0-47a1-920a-a18e75d6c389",
-            firstName = "Семён",
-            lastName = "Софель",
-            middleName = "Максимович",
-            className = "7-В",
-            schoolName = "ГБОУ Школа № 315",
-            gpa = 0.0
-        )
+        _studentProfile.value = StudentProfile()
         _scheduleToday.value = emptyList()
         _scheduleTomorrow.value = emptyList()
         _homeworkList.value = emptyList()
@@ -408,5 +434,6 @@ class MeshRepository(private val sessionManager: SessionManager) {
         _works.value = emptyList()
         _rewards.value = emptyList()
         _starLeaders.value = emptyList()
+        _classmates.value = emptyList()
     }
 }

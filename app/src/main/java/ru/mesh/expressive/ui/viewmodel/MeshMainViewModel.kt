@@ -13,7 +13,7 @@ import ru.mesh.expressive.data.repository.AutoCompleteResult
 import ru.mesh.expressive.data.repository.MeshRepository
 
 enum class MainTab {
-    DASHBOARD, SCHEDULE, HOMEWORK, MARKS, GIFTS, RATING, ATTENDANCE, MEALS, SETTINGS, AUTH
+    DASHBOARD, SCHEDULE, HOMEWORK, MARKS, GIFTS, RATING, CLASSMATES, ATTENDANCE, MEALS, SETTINGS, AUTH
 }
 
 enum class DashboardDay {
@@ -45,6 +45,21 @@ class MeshMainViewModel(
     private val _showWeightedGpa = MutableStateFlow(sessionManager.showWeightedGpa)
     val showWeightedGpa: StateFlow<Boolean> = _showWeightedGpa.asStateFlow()
 
+    private val _hideCompletedQuests = MutableStateFlow(sessionManager.hideCompletedQuests)
+    val hideCompletedQuests: StateFlow<Boolean> = _hideCompletedQuests.asStateFlow()
+
+    private val _enableSpringPhysics = MutableStateFlow(sessionManager.enableSpringPhysics)
+    val enableSpringPhysics: StateFlow<Boolean> = _enableSpringPhysics.asStateFlow()
+
+    private val _hideEmptyScheduleDays = MutableStateFlow(sessionManager.hideEmptyScheduleDays)
+    val hideEmptyScheduleDays: StateFlow<Boolean> = _hideEmptyScheduleDays.asStateFlow()
+
+    private val _gpaTargetScore = MutableStateFlow(sessionManager.gpaTargetScore)
+    val gpaTargetScore: StateFlow<Float> = _gpaTargetScore.asStateFlow()
+
+    private val _autoRefreshMinutes = MutableStateFlow(sessionManager.autoRefreshIntervalMinutes)
+    val autoRefreshMinutes: StateFlow<Int> = _autoRefreshMinutes.asStateFlow()
+
     val studentProfile: StateFlow<StudentProfile> = repository.studentProfile
     val scheduleToday: StateFlow<List<LessonScheduleItem>> = repository.scheduleToday
     val scheduleTomorrow: StateFlow<List<LessonScheduleItem>> = repository.scheduleTomorrow
@@ -52,6 +67,7 @@ class MeshMainViewModel(
     val subjectSummaries: StateFlow<List<SubjectSummary>> = repository.subjectSummaries
     val gamificationProfile: StateFlow<GamificationProfile> = repository.gamificationProfile
     val starLeaders: StateFlow<List<StarLeaderItem>> = repository.starLeaders
+    val classmates: StateFlow<List<ClassmateItem>> = repository.classmates
     val rewards: StateFlow<List<RewardItem>> = repository.rewards
     val works: StateFlow<List<WorkItem>> = repository.works
     val ratingInfo: StateFlow<RatingInfo> = repository.ratingInfo
@@ -95,6 +111,31 @@ class MeshMainViewModel(
     fun toggleShowWeightedGpa(enabled: Boolean) {
         sessionManager.showWeightedGpa = enabled
         _showWeightedGpa.value = enabled
+    }
+
+    fun toggleHideCompletedQuests(enabled: Boolean) {
+        sessionManager.hideCompletedQuests = enabled
+        _hideCompletedQuests.value = enabled
+    }
+
+    fun toggleEnableSpringPhysics(enabled: Boolean) {
+        sessionManager.enableSpringPhysics = enabled
+        _enableSpringPhysics.value = enabled
+    }
+
+    fun toggleHideEmptyScheduleDays(enabled: Boolean) {
+        sessionManager.hideEmptyScheduleDays = enabled
+        _hideEmptyScheduleDays.value = enabled
+    }
+
+    fun setGpaTargetScore(target: Float) {
+        sessionManager.gpaTargetScore = target
+        _gpaTargetScore.value = target
+    }
+
+    fun setAutoRefreshMinutes(minutes: Int) {
+        sessionManager.autoRefreshIntervalMinutes = minutes
+        _autoRefreshMinutes.value = minutes
     }
 
     fun unlockReward(id: String) {

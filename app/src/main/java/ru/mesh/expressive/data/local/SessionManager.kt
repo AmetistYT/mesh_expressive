@@ -22,6 +22,14 @@ class SessionManager(context: Context) {
         get() = prefs.getLong("student_id", 17486681L)
         set(value) = prefs.edit().putLong("student_id", value).apply()
 
+    var classUid: String
+        get() = prefs.getString("class_uid", "ba95ea86-d870-4924-9345-1b9c021c82f6") ?: "ba95ea86-d870-4924-9345-1b9c021c82f6"
+        set(value) = prefs.edit().putString("class_uid", value).apply()
+
+    var classUnitId: Long
+        get() = prefs.getLong("class_unit_id", 2073368L)
+        set(value) = prefs.edit().putLong("class_unit_id", value).apply()
+
     val isLoggedIn: Boolean
         get() = !authToken.isNullOrBlank()
 
@@ -40,6 +48,26 @@ class SessionManager(context: Context) {
     var showWeightedGpa: Boolean
         get() = prefs.getBoolean("show_weighted_gpa", true)
         set(value) = prefs.edit().putBoolean("show_weighted_gpa", value).apply()
+
+    var hideCompletedQuests: Boolean
+        get() = prefs.getBoolean("hide_completed_quests", false)
+        set(value) = prefs.edit().putBoolean("hide_completed_quests", value).apply()
+
+    var enableSpringPhysics: Boolean
+        get() = prefs.getBoolean("enable_spring_physics", true)
+        set(value) = prefs.edit().putBoolean("enable_spring_physics", value).apply()
+
+    var hideEmptyScheduleDays: Boolean
+        get() = prefs.getBoolean("hide_empty_schedule_days", false)
+        set(value) = prefs.edit().putBoolean("hide_empty_schedule_days", value).apply()
+
+    var gpaTargetScore: Float
+        get() = prefs.getFloat("gpa_target_score", 4.60f)
+        set(value) = prefs.edit().putFloat("gpa_target_score", value).apply()
+
+    var autoRefreshIntervalMinutes: Int
+        get() = prefs.getInt("auto_refresh_interval_minutes", 15)
+        set(value) = prefs.edit().putInt("auto_refresh_interval_minutes", value).apply()
 
     fun logout() {
         prefs.edit().remove("auth_token").apply()
