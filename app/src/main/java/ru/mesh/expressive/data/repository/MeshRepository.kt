@@ -200,78 +200,76 @@ object DemoMockDataProvider {
 
 class MeshRepository(private val sessionManager: SessionManager) {
 
-    private val _studentProfile = MutableStateFlow(
-        if (sessionManager.isLoggedIn) StudentProfile() else DemoMockDataProvider.studentProfile
-    )
+    private val _studentProfile = MutableStateFlow(StudentProfile())
     val studentProfile: StateFlow<StudentProfile> = _studentProfile.asStateFlow()
 
-    private val _scheduleToday = MutableStateFlow(
-        if (sessionManager.isLoggedIn) emptyList() else DemoMockDataProvider.scheduleToday
-    )
+    private val _scheduleToday = MutableStateFlow<List<LessonScheduleItem>>(emptyList())
     val scheduleToday: StateFlow<List<LessonScheduleItem>> = _scheduleToday.asStateFlow()
 
     private val _scheduleTomorrow = MutableStateFlow<List<LessonScheduleItem>>(emptyList())
     val scheduleTomorrow: StateFlow<List<LessonScheduleItem>> = _scheduleTomorrow.asStateFlow()
 
-    private val _homeworkList = MutableStateFlow(
-        if (sessionManager.isLoggedIn) emptyList() else DemoMockDataProvider.homeworkList
-    )
+    private val _homeworkList = MutableStateFlow<List<HomeworkItem>>(emptyList())
     val homeworkList: StateFlow<List<HomeworkItem>> = _homeworkList.asStateFlow()
 
-    private val _subjectSummaries = MutableStateFlow(
-        if (sessionManager.isLoggedIn) emptyList() else DemoMockDataProvider.subjectSummaries
-    )
+    private val _subjectSummaries = MutableStateFlow<List<SubjectSummary>>(emptyList())
     val subjectSummaries: StateFlow<List<SubjectSummary>> = _subjectSummaries.asStateFlow()
 
-    private val _gamificationProfile = MutableStateFlow(
-        if (sessionManager.isLoggedIn) GamificationProfile() else DemoMockDataProvider.gamificationProfile
-    )
+    private val _gamificationProfile = MutableStateFlow(GamificationProfile())
     val gamificationProfile: StateFlow<GamificationProfile> = _gamificationProfile.asStateFlow()
 
-    private val _starLeaders = MutableStateFlow(
-        if (sessionManager.isLoggedIn) emptyList() else DemoMockDataProvider.starLeaders
-    )
+    private val _starLeaders = MutableStateFlow<List<StarLeaderItem>>(emptyList())
     val starLeaders: StateFlow<List<StarLeaderItem>> = _starLeaders.asStateFlow()
 
-    private val _classmates = MutableStateFlow(
-        if (sessionManager.isLoggedIn) emptyList() else DemoMockDataProvider.classmates
-    )
+    private val _classmates = MutableStateFlow<List<ClassmateItem>>(emptyList())
     val classmates: StateFlow<List<ClassmateItem>> = _classmates.asStateFlow()
 
-    private val _rewards = MutableStateFlow(
-        if (sessionManager.isLoggedIn) emptyList() else DemoMockDataProvider.rewards
-    )
+    private val _rewards = MutableStateFlow<List<RewardItem>>(emptyList())
     val rewards: StateFlow<List<RewardItem>> = _rewards.asStateFlow()
 
-    private val _works = MutableStateFlow(
-        if (sessionManager.isLoggedIn) emptyList() else DemoMockDataProvider.works
-    )
+    private val _works = MutableStateFlow<List<WorkItem>>(emptyList())
     val works: StateFlow<List<WorkItem>> = _works.asStateFlow()
 
-    private val _ratingInfo = MutableStateFlow(
-        if (sessionManager.isLoggedIn) RatingInfo() else DemoMockDataProvider.ratingInfo
-    )
+    private val _ratingInfo = MutableStateFlow(RatingInfo())
     val ratingInfo: StateFlow<RatingInfo> = _ratingInfo.asStateFlow()
 
-    private val _mealsBalance = MutableStateFlow(
-        if (sessionManager.isLoggedIn) MealsBalance() else DemoMockDataProvider.mealsBalance
-    )
+    private val _mealsBalance = MutableStateFlow(MealsBalance())
     val mealsBalance: StateFlow<MealsBalance> = _mealsBalance.asStateFlow()
 
-    private val _attendance = MutableStateFlow(
-        if (sessionManager.isLoggedIn) AttendanceSummary() else DemoMockDataProvider.attendance
-    )
+    private val _attendance = MutableStateFlow(AttendanceSummary())
     val attendance: StateFlow<AttendanceSummary> = _attendance.asStateFlow()
+
+    init {
+        if (!sessionManager.isLoggedIn) {
+            loadDemoData()
+        }
+    }
 
     suspend fun saveAuthToken(token: String) {
         sessionManager.authToken = token
+        clearToEmpty()
         fetchRemoteData()
+    }
+
+    private fun clearToEmpty() {
+        _studentProfile.value = StudentProfile()
+        _scheduleToday.value = emptyList()
+        _scheduleTomorrow.value = emptyList()
+        _homeworkList.value = emptyList()
+        _subjectSummaries.value = emptyList()
+        _gamificationProfile.value = GamificationProfile()
+        _starLeaders.value = emptyList()
+        _classmates.value = emptyList()
+        _rewards.value = emptyList()
+        _works.value = emptyList()
+        _mealsBalance.value = MealsBalance()
+        _ratingInfo.value = RatingInfo()
+        _attendance.value = AttendanceSummary()
     }
 
     suspend fun fetchRemoteData() = withContext(Dispatchers.IO) {
         val rawToken = sessionManager.authToken
         if (rawToken.isNullOrBlank()) {
-            loadDemoData()
             return@withContext
         }
 

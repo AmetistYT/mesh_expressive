@@ -1,22 +1,20 @@
 package ru.mesh.expressive.ui.theme
 
-import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * 7-Sided Scalloped Cookie Shape (Signature Material Design 3 Expressive geometry)
+ * Perfectly symmetrical Scalloped Cookie Shape (Signature Material Design 3 Expressive geometry)
  */
-class M3Cookie7Shape(private val points: Int = 7) : Shape {
+class M3Cookie7Shape(private val points: Int = 8) : Shape {
     override fun createOutline(
         size: Size,
         layoutDirection: LayoutDirection,
@@ -25,33 +23,24 @@ class M3Cookie7Shape(private val points: Int = 7) : Shape {
         val path = Path()
         val cx = size.width / 2f
         val cy = size.height / 2f
-        val outerRadius = minOf(cx, cy)
-        val innerRadius = outerRadius * 0.82f
+        val maxR = minOf(cx, cy)
+        val amp = maxR * 0.085f
+        val baseR = maxR - amp
 
-        val step = (2.0 * Math.PI) / (points * 2)
-        var angle = -Math.PI / 2.0
+        val totalSteps = 120
+        val dTheta = (2.0 * Math.PI) / totalSteps
+        val startTheta = -Math.PI / 2.0
 
-        for (i in 0 until (points * 2)) {
-            val r = if (i % 2 == 0) outerRadius else innerRadius
-            val x = (cx + r * cos(angle)).toFloat()
-            val y = (cy + r * sin(angle)).toFloat()
-
-            if (i == 0) {
+        for (step in 0 until totalSteps) {
+            val theta = startTheta + step * dTheta
+            val r = (baseR + amp * cos(points * (theta - startTheta))).toFloat()
+            val x = cx + r * cos(theta).toFloat()
+            val y = cy + r * sin(theta).toFloat()
+            if (step == 0) {
                 path.moveTo(x, y)
             } else {
-                val prevAngle = angle - step
-                val prevR = if ((i - 1) % 2 == 0) outerRadius else innerRadius
-                val prevX = (cx + prevR * cos(prevAngle)).toFloat()
-                val prevY = (cy + prevR * sin(prevAngle)).toFloat()
-
-                val midAngle = angle - step / 2.0
-                val cpR = (outerRadius + innerRadius) / 2f * 1.08f
-                val cpx = (cx + cpR * cos(midAngle)).toFloat()
-                val cpy = (cy + cpR * sin(midAngle)).toFloat()
-
-                path.quadraticBezierTo(cpx, cpy, x, y)
+                path.lineTo(x, y)
             }
-            angle += step
         }
         path.close()
         return Outline.Generic(path)
@@ -66,9 +55,9 @@ val ExpressiveCardShape = RoundedCornerShape(
 )
 
 val ExpressiveHeroShape = RoundedCornerShape(
-    topStart = 36.dp,
+    topStart = 32.dp,
     topEnd = 20.dp,
-    bottomEnd = 36.dp,
+    bottomEnd = 32.dp,
     bottomStart = 20.dp
 )
 

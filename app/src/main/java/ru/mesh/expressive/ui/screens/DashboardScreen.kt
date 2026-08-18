@@ -158,26 +158,38 @@ fun DashboardScreen(
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = PillShape,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    text = profile.className,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                        if (profile.className.isNotBlank() || profile.schoolName.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (profile.className.isNotBlank()) {
+                                    Surface(
+                                        shape = PillShape,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = profile.className,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                if (profile.schoolName.isNotBlank()) {
+                                    Text(
+                                        text = profile.schoolName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                        } else {
                             Text(
-                                text = profile.schoolName,
+                                text = "Московская электронная школа",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
                         }
                     }
