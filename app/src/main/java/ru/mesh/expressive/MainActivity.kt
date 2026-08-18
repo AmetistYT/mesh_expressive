@@ -246,14 +246,31 @@ fun MeshMainApp(
                             }
                         },
                         actions = {
-                            IconButton(onClick = { viewModel.selectTab(MainTab.CLASSMATES) }) {
-                                Icon(
-                                    imageVector = Icons.Default.Groups,
-                                    contentDescription = "Мой класс"
-                                )
-                            }
                             IconButton(onClick = { viewModel.selectTab(MainTab.SETTINGS) }) {
-                                Icon(Icons.Default.Shield, contentDescription = "Приватность", tint = ScoreGreen)
+                                if (profile.firstName.isNotBlank() && profile.lastName.isNotBlank()) {
+                                    val initials = "${profile.firstName.first()}${profile.lastName.first()}"
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(M3Cookie7Shape(7))
+                                            .background(MaterialTheme.colorScheme.primary),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = initials,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountCircle,
+                                        contentDescription = "Профиль и Настройки",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
                             }
                         },
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(

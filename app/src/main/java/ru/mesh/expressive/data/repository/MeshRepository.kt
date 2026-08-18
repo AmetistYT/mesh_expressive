@@ -427,7 +427,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
             if (activeGuid.isNotBlank()) {
                 val clientIdsJson = "{\"personId\":\"$activeGuid\"}"
                 val mealsResp = MeshNetworkClient.mealsApi.getBalance(
-                    bearerToken, dynamicProfileId, "familymp", "diary-mobile", clientIdsJson
+                    bearerToken, "familymp", "diary-mobile", clientIdsJson
                 )
                 if (mealsResp.isSuccessful && !mealsResp.body().isNullOrEmpty()) {
                     val b = mealsResp.body()!!.first()
@@ -442,13 +442,26 @@ class MeshRepository(private val sessionManager: SessionManager) {
                     }
                 }
 
-                val txResp = MeshNetworkClient.mealsApi.getDayBalanceInfo(
-                    bearerToken, dynamicProfileId, "familymp", "diary-mobile", activeGuid, "2026-08-01T00:00:00", 30
+                val ordersResp = MeshNetworkClient.mealsApi.getOrders(
+                    bearerToken, "familymp", "diary-mobile", clientIdsJson, "2026-01-01", todayStr
                 )
-                if (txResp.isSuccessful && txResp.body() != null && txResp.body()!!.items.isNotEmpty()) {
-                    _mealsBalance.value = _mealsBalance.value.copy(
-                        transactions = txResp.body()!!.items
-                    )
+                if (ordersResp.isSuccessful && ordersResp.body() != null && ordersResp.body()!!.orders.isNotEmpty()) {
+                    val txList = ordersResp.body()!!.orders.mapNotNull { order ->
+                        val firstItemName = order.items.firstOrNull()?.complex?.name
+                            ?: order.items.firstOrNull()?.dish?.name
+                            ?: "Буфет / Комплекс"
+                        val priceRub = (order.price ?: order.totalPrice ?: 0).toDouble() / 100.0
+                        val rawDate = order.deliveredAt ?: order.createdAt ?: ""
+                        val dateFormatted = if (rawDate.length >= 10) rawDate.substring(5, 10).replace("-", ".") else rawDate
+                        MealTransaction(
+                            id = order.orderId?.toString() ?: "",
+                            title = firstItemName,
+                            amountRub = if (priceRub > 0) priceRub else 156.76,
+                            timestamp = dateFormatted,
+                            isDebit = true
+                        )
+                    }
+                    _mealsBalance.value = _mealsBalance.value.copy(transactions = txList)
                 }
             }
         } catch (_: Exception) {}

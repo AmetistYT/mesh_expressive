@@ -108,6 +108,49 @@ data class ExpenseConstraintsDTO(
     val balanceThreshold: Double? = null
 )
 
+data class OrdersHistoryResponse(
+    @SerializedName("hasNext")
+    val hasNext: Boolean = false,
+    @SerializedName("orders")
+    val orders: List<OrderItemDTO> = emptyList()
+)
+
+data class OrderItemDTO(
+    @SerializedName("orderId")
+    val orderId: Long? = null,
+    @SerializedName("createdAt")
+    val createdAt: String? = null,
+    @SerializedName("deliveredAt")
+    val deliveredAt: String? = null,
+    @SerializedName("price")
+    val price: Int? = null,
+    @SerializedName("totalPrice")
+    val totalPrice: Int? = null,
+    @SerializedName("items")
+    val items: List<OrderSubItemDTO> = emptyList()
+)
+
+data class OrderSubItemDTO(
+    @SerializedName("complex")
+    val complex: ComplexDTO? = null,
+    @SerializedName("dish")
+    val dish: DishDTO? = null
+)
+
+data class ComplexDTO(
+    @SerializedName("name")
+    val name: String? = null,
+    @SerializedName("price")
+    val price: Int? = null
+)
+
+data class DishDTO(
+    @SerializedName("name")
+    val name: String? = null,
+    @SerializedName("price")
+    val price: Int? = null
+)
+
 data class DayBalanceResponse(
     @SerializedName("items")
     val items: List<MealTransaction> = emptyList()
@@ -124,7 +167,7 @@ interface MeshFamilyWebApi {
     @GET("profile")
     suspend fun getProfile(
         @Header("Auth-Token") token: String,
-        @Header("Profile-Id") profileId: Long,
+        @Header("Profile-Id") profileId: Long = 0L,
         @Header("X-Mes-Subsystem") subsystem: String = "familyweb"
     ): Response<WebProfileResponse>
 
@@ -249,22 +292,20 @@ interface MeshMealsApi {
     @GET("clients/balance")
     suspend fun getBalance(
         @Header("Authorization") token: String,
-        @Header("Profile-id") profileId: Long,
         @Header("X-Mes-Subsystem") subsystem: String = "familymp",
         @Header("client-type") clientType: String = "diary-mobile",
-        @Query("clientIds", encoded = true) clientIds: String
+        @Query("clientIds") clientIds: String
     ): Response<List<ClientBalanceResponse>>
 
-    @GET("clients/{clientPersonId}/balance-info/day")
-    suspend fun getDayBalanceInfo(
+    @GET("orders")
+    suspend fun getOrders(
         @Header("Authorization") token: String,
-        @Header("Profile-id") profileId: Long,
         @Header("X-Mes-Subsystem") subsystem: String = "familymp",
         @Header("client-type") clientType: String = "diary-mobile",
-        @Path("clientPersonId") clientPersonId: String,
-        @Query("from") fromDate: String,
-        @Query("limit") limit: Int = 20
-    ): Response<DayBalanceResponse>
+        @Query("clientId") clientId: String,
+        @Query("from") from: String,
+        @Query("to") to: String
+    ): Response<OrdersHistoryResponse>
 }
 
 object MeshNetworkClient {
