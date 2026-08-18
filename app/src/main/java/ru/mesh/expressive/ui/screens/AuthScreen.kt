@@ -570,6 +570,15 @@ private fun WelcomeLandingView(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "вайбкод",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
         }
     }
 }
