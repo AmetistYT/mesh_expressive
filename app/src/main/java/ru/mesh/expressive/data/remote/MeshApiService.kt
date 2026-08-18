@@ -286,6 +286,36 @@ interface MeshGamificationApi {
         @Header("client-type") clientType: String = "diary-mobile",
         @Body request: PersonsSearchFilterBody
     ): Response<List<PersonSearchItem>>
+
+    @GET("persons")
+    suspend fun getPersonByGamificationId(
+        @Header("Authorization") token: String,
+        @Header("Profile-id") profileId: Long,
+        @Header("X-Mes-Subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Query("gamificationId") gamificationId: String
+    ): Response<PersonSearchItem>
+
+    @POST("profiles/{profileId}/rewards/{rewardId}")
+    suspend fun sendRewardGift(
+        @Header("Authorization") token: String,
+        @Header("Profile-id") profileId: Long,
+        @Header("X-Mes-Subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("profileId") senderProfileId: String,
+        @Path("rewardId") rewardId: String,
+        @Body request: SendRewardGiftRequest
+    ): Response<Unit>
+
+    @POST("profiles/{profileId}/rewards")
+    suspend fun getProfileRewards(
+        @Header("Authorization") token: String,
+        @Header("Profile-id") profileId: Long,
+        @Header("X-Mes-Subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("profileId") profileIdPath: String,
+        @Body request: Map<String, String> = emptyMap()
+    ): Response<List<ProfileRewardItem>>
 }
 
 interface MeshMealsApi {

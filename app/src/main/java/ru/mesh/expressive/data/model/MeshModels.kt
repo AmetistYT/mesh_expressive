@@ -221,16 +221,54 @@ data class StarLeaderItem(
 data class RewardItem(
     @SerializedName("id")
     val id: String = "",
-    @SerializedName("title")
+    @SerializedName("name")
     val title: String = "",
     @SerializedName("description")
     val description: String? = null,
-    @SerializedName("price")
+    @SerializedName("points")
     val costStars: Int = 100,
     @SerializedName("imageUrl")
     val iconName: String? = null,
+    @SerializedName("animationUrl")
+    val animationUrl: String? = null,
+    @SerializedName("rewardType")
+    val rewardType: String? = "GIFT",
+    @SerializedName("balance")
+    val remainingStock: Int? = null,
     @SerializedName("isUnlocked")
     val isUnlocked: Boolean = false
+)
+
+data class ProfileRewardItem(
+    @SerializedName("id")
+    val id: Long = 0L,
+    @SerializedName("profileRewardId")
+    val profileRewardId: Long = 0L,
+    @SerializedName("name")
+    val name: String = "",
+    @SerializedName("comment")
+    val comment: String? = null,
+    @SerializedName("sendingMode")
+    val sendingMode: String = "PUBLIC",
+    @SerializedName("from")
+    val from: PersonSearchItem? = null,
+    @SerializedName("to")
+    val to: PersonSearchItem? = null,
+    @SerializedName("imageUrl")
+    val imageUrl: String? = null,
+    @SerializedName("animationUrl")
+    val animationUrl: String? = null,
+    @SerializedName("purchasedAt")
+    val purchasedAt: String? = null
+)
+
+data class SendRewardGiftRequest(
+    @SerializedName("comment")
+    val comment: String = "",
+    @SerializedName("recipientProfileIds")
+    val recipientProfileIds: List<Long> = emptyList(),
+    @SerializedName("sendingMode")
+    val sendingMode: String = "PUBLIC"
 )
 
 /**

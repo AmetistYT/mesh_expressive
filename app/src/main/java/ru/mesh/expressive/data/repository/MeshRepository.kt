@@ -227,6 +227,9 @@ class MeshRepository(private val sessionManager: SessionManager) {
     private val _rewards = MutableStateFlow<List<RewardItem>>(emptyList())
     val rewards: StateFlow<List<RewardItem>> = _rewards.asStateFlow()
 
+    private val _profileRewards = MutableStateFlow<List<ProfileRewardItem>>(emptyList())
+    val profileRewards: StateFlow<List<ProfileRewardItem>> = _profileRewards.asStateFlow()
+
     private val _works = MutableStateFlow<List<WorkItem>>(emptyList())
     val works: StateFlow<List<WorkItem>> = _works.asStateFlow()
 
@@ -261,6 +264,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
         _starLeaders.value = emptyList()
         _classmates.value = emptyList()
         _rewards.value = emptyList()
+        _profileRewards.value = emptyList()
         _works.value = emptyList()
         _mealsBalance.value = MealsBalance()
         _ratingInfo.value = RatingInfo()
@@ -404,9 +408,9 @@ class MeshRepository(private val sessionManager: SessionManager) {
                 }
             }
 
-            val gamifId = _gamificationProfile.value.id?.toString() ?: dynamicProfileId.toString()
+            val actualGamifId = (_gamificationProfile.value.id ?: dynamicProfileId).toString()
             val worksResp = MeshNetworkClient.gamificationApi.searchWorks(
-                bearerToken, dynamicProfileId, "familymp", "diary-mobile", gamifId, WorksSearchRequest(profileId = gamifId)
+                bearerToken, dynamicProfileId, "familymp", "diary-mobile", actualGamifId, WorksSearchRequest(profileId = actualGamifId)
             )
             if (worksResp.isSuccessful && worksResp.body() != null) {
                 _works.value = worksResp.body()!!.items
@@ -417,6 +421,13 @@ class MeshRepository(private val sessionManager: SessionManager) {
             )
             if (rewardsResp.isSuccessful && rewardsResp.body() != null) {
                 _rewards.value = rewardsResp.body()!!.items
+            }
+
+            val feedResp = MeshNetworkClient.gamificationApi.getProfileRewards(
+                bearerToken, dynamicProfileId, "familymp", "diary-mobile", actualGamifId
+            )
+            if (feedResp.isSuccessful && feedResp.body() != null) {
+                _profileRewards.value = feedResp.body()!!
             }
         } catch (_: Exception) {}
 
@@ -640,6 +651,69 @@ class MeshRepository(private val sessionManager: SessionManager) {
             _rewards.value = _rewards.value.map {
                 if (it.id == id) it.copy(isUnlocked = true) else it
             }
+        }
+    }
+
+    suspend fun sendGift(
+        rewardId: String,
+        costStars: Int,
+        gamificationId: String,
+        comment: String,
+        isAnonymous: Boolean
+    ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        val rawToken = sessionManager.authToken
+        if (rawToken.isNullOrBlank()) {
+            return@withContext Pair(false, "Необходимо войти в аккаунт через mos.ru")
+        }
+        val cleanToken = if (rawToken.startsWith("Bearer ")) rawToken.substring(7) else rawToken
+        val bearerToken = "Bearer $cleanToken"
+        val profileId = sessionManager.profileId.toLongOrNull() ?: 0L
+        val senderGamifId = _gamificationProfile.value.id?.toString() ?: profileId.toString()
+
+        val currentStars = _gamificationProfile.value.coinsCount
+        if (!_gamificationProfile.value.infiniteStarsOverride && currentStars < costStars) {
+            return@withContext Pair(false, "Недостаточно звезд на балансе")
+        }
+
+        try {
+            val personResp = MeshNetworkClient.gamificationApi.getPersonByGamificationId(
+                bearerToken, profileId, "familymp", "diary-mobile", gamificationId.trim().uppercase()
+            )
+            if (!personResp.isSuccessful || personResp.body() == null) {
+                return@withContext Pair(false, "Ученик с ID $gamificationId не найден")
+            }
+
+            val recipient = personResp.body()!!
+            if (!recipient.isReceiveRewardsAllowed) {
+                return@withContext Pair(false, "Пользователь ограничил получение подарков в настройках")
+            }
+
+            val sendResp = MeshNetworkClient.gamificationApi.sendRewardGift(
+                bearerToken, profileId, "familymp", "diary-mobile",
+                senderGamifId,
+                rewardId,
+                SendRewardGiftRequest(
+                    comment = comment,
+                    recipientProfileIds = listOf(recipient.id),
+                    sendingMode = if (isAnonymous) "PRIVATE" else "PUBLIC"
+                )
+            )
+
+            if (sendResp.isSuccessful) {
+                if (!_gamificationProfile.value.infiniteStarsOverride) {
+                    val newBalance = (_gamificationProfile.value.coinsCount - costStars).coerceAtLeast(0)
+                    val newSpent = _gamificationProfile.value.coinsSpent + costStars
+                    _gamificationProfile.value = _gamificationProfile.value.copy(
+                        coinsCount = newBalance,
+                        coinsSpent = newSpent
+                    )
+                }
+                return@withContext Pair(true, "Подарок успешно отправлен для ${recipient.firstName} ${recipient.lastName}!")
+            } else {
+                return@withContext Pair(false, "Ошибка сервера при отправке подарка (${sendResp.code()})")
+            }
+        } catch (e: Exception) {
+            return@withContext Pair(false, "Ошибка: ${e.localizedMessage ?: "не удалось отправить"}")
         }
     }
 

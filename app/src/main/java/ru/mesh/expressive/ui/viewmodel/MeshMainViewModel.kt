@@ -69,6 +69,7 @@ class MeshMainViewModel(
     val starLeaders: StateFlow<List<StarLeaderItem>> = repository.starLeaders
     val classmates: StateFlow<List<ClassmateItem>> = repository.classmates
     val rewards: StateFlow<List<RewardItem>> = repository.rewards
+    val profileRewards: StateFlow<List<ProfileRewardItem>> = repository.profileRewards
     val works: StateFlow<List<WorkItem>> = repository.works
     val ratingInfo: StateFlow<RatingInfo> = repository.ratingInfo
     val mealsBalance: StateFlow<MealsBalance> = repository.mealsBalance
@@ -140,6 +141,26 @@ class MeshMainViewModel(
 
     fun unlockReward(id: String) {
         repository.unlockReward(id)
+    }
+
+    fun sendGift(
+        rewardId: String,
+        costStars: Int,
+        gamificationId: String,
+        comment: String,
+        isAnonymous: Boolean,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val (success, message) = repository.sendGift(
+                rewardId = rewardId,
+                costStars = costStars,
+                gamificationId = gamificationId,
+                comment = comment,
+                isAnonymous = isAnonymous
+            )
+            onResult(success, message)
+        }
     }
 
     fun saveAuthToken(token: String) {
