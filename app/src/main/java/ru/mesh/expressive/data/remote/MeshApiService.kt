@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 
 data class WorksSearchRequest(
     @SerializedName("profileId")
-    val profileId: String = "275590",
+    val profileId: String = "",
     @SerializedName("pagination")
     val pagination: PaginationDTO = PaginationDTO(),
     @SerializedName("filters")

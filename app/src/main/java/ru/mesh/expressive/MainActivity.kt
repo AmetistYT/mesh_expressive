@@ -84,6 +84,7 @@ fun MeshMainApp(
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val initials = "${profile.firstName.firstOrNull() ?: 'М'}${profile.lastName.firstOrNull() ?: 'Э'}"
                     Box(
                         modifier = Modifier
                             .size(54.dp)
@@ -92,7 +93,7 @@ fun MeshMainApp(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "${profile.firstName.first()}${profile.lastName.first()}",
+                            text = initials,
                             color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Bold
                         )

@@ -11,23 +11,23 @@ class SessionManager(context: Context) {
         set(value) = prefs.edit().putString("auth_token", value).apply()
 
     var personId: Long
-        get() = prefs.getLong("person_id", 2778403L)
+        get() = prefs.getLong("person_id", 0L)
         set(value) = prefs.edit().putLong("person_id", value).apply()
 
     var profileId: String
-        get() = prefs.getString("profile_id", "17486681") ?: "17486681"
+        get() = prefs.getString("profile_id", "") ?: ""
         set(value) = prefs.edit().putString("profile_id", value).apply()
 
     var studentId: Long
-        get() = prefs.getLong("student_id", 17486681L)
+        get() = prefs.getLong("student_id", 0L)
         set(value) = prefs.edit().putLong("student_id", value).apply()
 
     var classUid: String
-        get() = prefs.getString("class_uid", "ba95ea86-d870-4924-9345-1b9c021c82f6") ?: "ba95ea86-d870-4924-9345-1b9c021c82f6"
+        get() = prefs.getString("class_uid", "") ?: ""
         set(value) = prefs.edit().putString("class_uid", value).apply()
 
     var classUnitId: Long
-        get() = prefs.getLong("class_unit_id", 2073368L)
+        get() = prefs.getLong("class_unit_id", 0L)
         set(value) = prefs.edit().putLong("class_unit_id", value).apply()
 
     val isLoggedIn: Boolean

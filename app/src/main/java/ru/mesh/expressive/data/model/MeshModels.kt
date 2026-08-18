@@ -6,17 +6,17 @@ import com.google.gson.annotations.SerializedName
  * Профиль учащегося
  */
 data class StudentProfile(
-    val id: String = "17486681",
-    val personId: Long = 2778403L,
-    val contingentGuid: String = "3473f068-8ec0-47a1-920a-a18e75d6c389",
-    val classUid: String = "ba95ea86-d870-4924-9345-1b9c021c82f6",
-    val classUnitId: Long = 2073368L,
-    val classLevelId: Int = 7,
-    val firstName: String = "Семён",
-    val lastName: String = "Софель",
-    val middleName: String = "Максимович",
-    val className: String = "7-В",
-    val schoolName: String = "ГБОУ Школа № 315",
+    val id: String = "",
+    val personId: Long = 0L,
+    val contingentGuid: String = "",
+    val classUid: String = "",
+    val classUnitId: Long = 0L,
+    val classLevelId: Int = 0,
+    val firstName: String = "",
+    val lastName: String = "",
+    val middleName: String = "",
+    val className: String = "",
+    val schoolName: String = "",
     val gpa: Double = 0.0,
     val avatarUrl: String? = null
 )
@@ -25,13 +25,13 @@ data class StudentProfile(
  * Элемент расписания уроков
  */
 data class LessonScheduleItem(
-    val id: String,
-    val subject: String,
-    val lessonNumber: Int,
-    val startTime: String,
-    val endTime: String,
-    val room: String,
-    val teacherName: String,
+    val id: String = "",
+    val subject: String = "",
+    val lessonNumber: Int = 1,
+    val startTime: String = "",
+    val endTime: String = "",
+    val room: String = "",
+    val teacherName: String = "",
     val isOngoing: Boolean = false,
     val isCanceled: Boolean = false,
     val attendanceStatus: AttendanceType = AttendanceType.PRESENT,
@@ -48,11 +48,11 @@ enum class AttendanceType {
  * Домашнее задание
  */
 data class HomeworkItem(
-    val id: String,
-    val subject: String,
-    val description: String,
-    val date: String,
-    val dueDate: String,
+    val id: String = "",
+    val subject: String = "",
+    val description: String = "",
+    val date: String = "",
+    val dueDate: String = "",
     var isDone: Boolean = false,
     val hasDigitalTest: Boolean = false,
     val digitalTestUrl: String? = null
@@ -62,12 +62,12 @@ data class HomeworkItem(
  * Оценка
  */
 data class MarkItem(
-    val id: String,
-    val subject: String,
-    val value: Int,
+    val id: String = "",
+    val subject: String = "",
+    val value: Int = 5,
     val weight: Double = 1.0,
-    val date: String,
-    val topic: String,
+    val date: String = "",
+    val topic: String = "",
     val isExam: Boolean = false
 )
 
@@ -75,9 +75,9 @@ data class MarkItem(
  * Сводка по предмету
  */
 data class SubjectSummary(
-    val subject: String,
-    val averageMark: Double,
-    val marks: List<MarkItem>,
+    val subject: String = "",
+    val averageMark: Double = 0.0,
+    val marks: List<MarkItem> = emptyList(),
     val targetMark: Double = 4.60,
     val teacher: String = "Учитель предмета"
 )
@@ -87,16 +87,16 @@ data class SubjectSummary(
  */
 data class GamificationProfile(
     @SerializedName("id")
-    val id: Long? = 275590L,
+    val id: Long? = null,
 
     @SerializedName("gamificationId")
-    val gamificationId: String? = "AAE75590",
+    val gamificationId: String? = null,
 
     @SerializedName("balance")
-    val coinsCount: Int = 5,
+    val coinsCount: Int = 0,
 
     @SerializedName("spentPoints")
-    val coinsSpent: Int = 530,
+    val coinsSpent: Int = 0,
 
     @SerializedName("level")
     val level: Int = 1,
@@ -116,12 +116,12 @@ data class GamificationProfile(
  * Одноклассник (Мой класс)
  */
 data class ClassmateItem(
-    val profileId: Long,
-    val gamificationId: String,
-    val firstName: String,
-    val lastName: String,
-    val rank: Int,
-    val spentStars: Int,
+    val profileId: Long = 0L,
+    val gamificationId: String = "",
+    val firstName: String = "",
+    val lastName: String = "",
+    val rank: Int = 0,
+    val spentStars: Int = 0,
     val isBirthdayToday: Boolean = false,
     val isCurrentUser: Boolean = false
 )
@@ -152,17 +152,17 @@ data class PersonsRatingResponse(
 
 data class PersonRatingItem(
     @SerializedName("profileId")
-    val profileId: Long,
+    val profileId: Long = 0L,
     @SerializedName("gamificationId")
-    val gamificationId: String,
+    val gamificationId: String = "",
     @SerializedName("rating")
-    val rating: Int,
+    val rating: Int = 0,
     @SerializedName("spentPoints")
-    val spentPoints: Int,
+    val spentPoints: Int = 0,
     @SerializedName("firstName")
-    val firstName: String,
+    val firstName: String = "",
     @SerializedName("lastName")
-    val lastName: String,
+    val lastName: String = "",
     @SerializedName("isReceiveRewardsAllowed")
     val isReceiveRewardsAllowed: Boolean = true,
     @SerializedName("isShowRewardsAllowed")
@@ -188,13 +188,13 @@ data class PersonsSorting(
 
 data class PersonSearchItem(
     @SerializedName("id")
-    val id: Long,
+    val id: Long = 0L,
     @SerializedName("gamificationId")
-    val gamificationId: String,
+    val gamificationId: String = "",
     @SerializedName("firstName")
-    val firstName: String,
+    val firstName: String = "",
     @SerializedName("lastName")
-    val lastName: String,
+    val lastName: String = "",
     @SerializedName("isReceiveRewardsAllowed")
     val isReceiveRewardsAllowed: Boolean = true,
     @SerializedName("isShowRewardsAllowed")
@@ -207,10 +207,10 @@ data class PersonSearchItem(
  * Лидер в рейтинге щедрости
  */
 data class StarLeaderItem(
-    val rank: Int,
-    val name: String,
-    val className: String,
-    val spentStars: Int,
+    val rank: Int = 0,
+    val name: String = "",
+    val className: String = "",
+    val spentStars: Int = 0,
     val gamificationId: String = "",
     val isCurrentUser: Boolean = false
 )
@@ -220,9 +220,9 @@ data class StarLeaderItem(
  */
 data class RewardItem(
     @SerializedName("id")
-    val id: String,
+    val id: String = "",
     @SerializedName("title")
-    val title: String,
+    val title: String = "",
     @SerializedName("description")
     val description: String? = null,
     @SerializedName("price")
@@ -238,9 +238,9 @@ data class RewardItem(
  */
 data class WorkItem(
     @SerializedName("id")
-    val id: String,
+    val id: String = "",
     @SerializedName("title")
-    val title: String,
+    val title: String = "",
     @SerializedName("description")
     val description: String? = null,
     @SerializedName("coinsCount")
@@ -276,22 +276,22 @@ data class RatingInfo(
  * Москвёнок (Питание и карта)
  */
 data class MealsBalance(
-    val clientBalanceRub: Double = 18.15,
+    val clientBalanceRub: Double = 0.0,
     val dailyLimitRub: Double? = null,
     val hotMealSubscribed: Boolean = false,
-    val cardId: String = "138810049",
+    val cardId: String = "",
     val transactions: List<MealTransaction> = emptyList()
 )
 
 data class MealTransaction(
     @SerializedName("id")
-    val id: String,
+    val id: String = "",
     @SerializedName("title")
-    val title: String,
+    val title: String = "",
     @SerializedName("amount")
-    val amountRub: Double,
+    val amountRub: Double = 0.0,
     @SerializedName("date")
-    val timestamp: String,
+    val timestamp: String = "",
     @SerializedName("isDebit")
     val isDebit: Boolean = true
 )
@@ -310,17 +310,17 @@ data class AttendanceSummary(
 
 data class EmiasRecord(
     @SerializedName("id")
-    val id: String,
+    val id: String = "",
     @SerializedName("certificateNumber")
-    val certificateNumber: String,
+    val certificateNumber: String = "",
     @SerializedName("clinicName")
-    val clinicName: String,
+    val clinicName: String = "",
     @SerializedName("startDate")
-    val startDate: String,
+    val startDate: String = "",
     @SerializedName("endDate")
-    val endDate: String,
+    val endDate: String = "",
     @SerializedName("diagnosis")
-    val diagnosis: String,
+    val diagnosis: String = "",
     @SerializedName("physicalCultureExemptionUntil")
     val physicalCultureExemptionUntil: String = "",
     @SerializedName("status")
