@@ -1,0 +1,17 @@
+# Ignore decompiled files and bundles in GitHub Linguist language statistics
+decompiled/** linguist-vendored
+decompiled/** linguist-generated=true
+decompiled/** linguist-detectable=false
+
+*.js linguist-vendored
+*.js linguist-generated=true
+*.js linguist-detectable=false
+
+*.bundle linguist-vendored
+*.bundle linguist-generated=true
+*.bundle.js linguist-vendored
+*.bundle.js linguist-generated=true
+
+# Keep Kotlin files detectable as primary repository language
+*.kt linguist-detectable=true
+*.kts linguist-detectable=true
