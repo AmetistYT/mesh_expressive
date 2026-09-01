@@ -180,25 +180,93 @@ interface MeshFamilyWebApi {
         @Query("from") from: String,
         @Query("to") to: String
     ): Response<AttendanceResponse>
+}
 
-    @GET("schedule")
-    suspend fun getSchedule(
-        @Header("Auth-Token") token: String,
+interface MeshFamilyMobileApi {
+    @GET("profile")
+    suspend fun getMobileProfile(
+        @Header("Authorization") token: String,
         @Header("Profile-Id") profileId: Long,
-        @Header("X-Mes-Subsystem") subsystem: String = "familyweb",
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile"
+    ): Response<WebProfileResponse>
+
+    @GET("lesson_schedule_items")
+    suspend fun getLessonScheduleItems(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
         @Query("student_id") studentId: Long,
+        @Query("person_id") personId: String,
         @Query("date") date: String
-    ): Response<List<LessonScheduleItem>>
+    ): Response<List<LessonScheduleItemResponseDTO>>
+
+    @GET("homeworks/short")
+    suspend fun getHomeworksShort(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Query("student_id") studentId: Long,
+        @Query("from") from: String,
+        @Query("to") to: String,
+        @Query("sort_column") sortColumn: String = "date",
+        @Query("sort_direction") sortDirection: String = "asc"
+    ): Response<HomeworksShortResponseDTO>
+
+    @POST("homeworks/{homework_entry_student_id}/done")
+    suspend fun markHomeworkDone(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("homework_entry_student_id") homeworkId: Long
+    ): Response<Unit>
+
+    @DELETE("homeworks/{homework_entry_student_id}/done")
+    suspend fun markHomeworkUndone(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("homework_entry_student_id") homeworkId: Long
+    ): Response<Unit>
 
     @GET("marks")
     suspend fun getMarks(
-        @Header("Auth-Token") token: String,
+        @Header("Authorization") token: String,
         @Header("Profile-Id") profileId: Long,
-        @Header("X-Mes-Subsystem") subsystem: String = "familyweb",
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
         @Query("student_id") studentId: Long,
         @Query("from") from: String,
         @Query("to") to: String
-    ): Response<List<MarkItem>>
+    ): Response<List<MarkByDateItemDTO>>
+
+    @GET("subject_marks/short")
+    suspend fun getSubjectMarksShort(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Query("student_id") studentId: Long
+    ): Response<SubjectMarksShortResponseDTO>
+}
+
+interface MeshEventCalendarApi {
+    @GET("api/events")
+    suspend fun getEvents(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Header("x-mes-role") role: String = "student",
+        @Query("person_ids") personIds: String,
+        @Query("begin_date") beginDate: String,
+        @Query("end_date") endDate: String,
+        @Query("expand") expand: String = "homework,materials,marks"
+    ): Response<EventCalendarResponse>
 }
 
 interface MeshRatingApi {
@@ -340,6 +408,8 @@ interface MeshMealsApi {
 
 object MeshNetworkClient {
     private const val BASE_FAMILY_WEB = "https://school.mos.ru/api/family/web/v1/"
+    private const val BASE_FAMILY_MOBILE = "https://school.mos.ru/api/family/mobile/v1/"
+    private const val BASE_EVENT_CALENDAR = "https://school.mos.ru/api/eventcalendar/v1/"
     private const val BASE_GAMIFICATION = "https://school.mos.ru/api/gamification/v1/"
     private const val BASE_RATING = "https://school.mos.ru/api/ej/rating/v1/"
     private const val BASE_MEALS = "https://school.mos.ru/api/food/meals/v3/"
@@ -365,6 +435,24 @@ object MeshNetworkClient {
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(MeshFamilyWebApi::class.java)
+    }
+
+    val familyMobileApi: MeshFamilyMobileApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_FAMILY_MOBILE)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(MeshFamilyMobileApi::class.java)
+    }
+
+    val eventCalendarApi: MeshEventCalendarApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_EVENT_CALENDAR)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(MeshEventCalendarApi::class.java)
     }
 
     val gamificationApi: MeshGamificationApi by lazy {

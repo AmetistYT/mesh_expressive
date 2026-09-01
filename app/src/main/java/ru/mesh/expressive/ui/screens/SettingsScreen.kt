@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
@@ -58,8 +59,8 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
     ) {
         // 1. Account & Profile Card
         item {
@@ -270,6 +271,20 @@ fun SettingsScreen(
                         subtitle = "Не показывать карточки дней без запланированных уроков",
                         isChecked = hideEmptyScheduleDays,
                         onCheckedChange = { viewModel.toggleHideEmptyScheduleDays(it) }
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Replay Onboarding Tour
+                    SettingsActionRow(
+                        icon = Icons.Default.School,
+                        title = "Обучение и подсказки",
+                        subtitle = "Пройти интерактивный гид по функциям заново",
+                        onClick = {
+                            viewModel.restartOnboardingGuide()
+                            viewModel.selectTab(ru.mesh.expressive.ui.viewmodel.MainTab.DASHBOARD)
+                            Toast.makeText(context, "Интерактивный гид запущен", Toast.LENGTH_SHORT).show()
+                        }
                     )
                 }
             }
@@ -535,7 +550,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Версия 1.3.0 • Material Design 3 Expressive • Open Source",
+                        text = "Версия 1.4.0 • Material Design 3 Expressive • Open Source",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -714,6 +729,53 @@ private fun SettingsToggleRow(
         Switch(
             checked = isChecked,
             onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+private fun SettingsActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
         )
     }
 }

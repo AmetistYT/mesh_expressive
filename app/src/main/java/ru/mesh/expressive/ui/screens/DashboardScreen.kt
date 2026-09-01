@@ -43,12 +43,10 @@ fun DashboardScreen(
     val scheduleToday by viewModel.scheduleToday.collectAsState()
     val scheduleTomorrow by viewModel.scheduleTomorrow.collectAsState()
     val homeworkList by viewModel.homeworkList.collectAsState()
-    val gamification by viewModel.gamificationProfile.collectAsState()
     val meals by viewModel.mealsBalance.collectAsState()
     val dashboardDay by viewModel.dashboardDay.collectAsState()
+    val isCompactSchedule by viewModel.isCompactSchedule.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-
-    var showGiftClaimDialog by remember { mutableStateOf(false) }
 
     ExpressivePullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -60,8 +58,8 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
         ) {
             // Demo Mode Banner
             if (!viewModel.isLoggedIn) {
@@ -302,87 +300,6 @@ fun DashboardScreen(
             }
         }
 
-        // 3. Daily Gift & Stars Banner
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .expressiveBounceClick {
-                        if (gamification.dailyGiftAvailable) {
-                            viewModel.claimDailyGift()
-                            showGiftClaimDialog = true
-                        } else {
-                            onNavigate(MainTab.GIFTS)
-                        }
-                    },
-                shape = ExpressiveCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(M3Cookie7Shape(7))
-                                .background(StarGold),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = if (gamification.dailyGiftAvailable) "Ежедневный подарок готов!" else "Баланс звезд",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                            Text(
-                                text = if (gamification.dailyGiftAvailable) "Нажмите, чтобы забрать +150 звезд" else "${gamification.coinsCount} звезд на счете",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = {
-                            if (gamification.dailyGiftAvailable) {
-                                viewModel.claimDailyGift()
-                                showGiftClaimDialog = true
-                            } else {
-                                onNavigate(MainTab.GIFTS)
-                            }
-                        },
-                        shape = PillShape,
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary
-                        )
-                    ) {
-                        Text(
-                            text = if (gamification.dailyGiftAvailable) "Забрать" else "В магазин",
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-        }
-
         // 4. Schedule Section with Segmented Toggle (Сегодня / Завтра)
         item {
             Column {
@@ -430,7 +347,7 @@ fun DashboardScreen(
             }
         } else {
             items(currentSchedule) { lesson ->
-                LessonCard(lesson = lesson)
+                LessonCard(lesson = lesson, isCompact = isCompactSchedule)
             }
         }
 
@@ -473,30 +390,6 @@ fun DashboardScreen(
             }
         }
     }
-
-    if (showGiftClaimDialog) {
-        AlertDialog(
-            onDismissRequest = { showGiftClaimDialog = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = null,
-                    tint = StarGold,
-                    modifier = Modifier.size(48.dp)
-                )
-            },
-            title = { Text("Подарок получен!", fontWeight = FontWeight.Bold) },
-            text = { Text("+150 звезд начислено на ваш баланс. Используйте их для открытия эксклюзивных наград и стилей в разделе «Подарки».") },
-            confirmButton = {
-                Button(
-                    onClick = { showGiftClaimDialog = false },
-                    shape = PillShape
-                ) {
-                    Text("Отлично")
-                }
-            }
-        )
-    }
 }
 }
 
@@ -534,59 +427,174 @@ fun SegmentedPill(
 }
 
 @Composable
-fun LessonCard(lesson: LessonScheduleItem) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ExpressiveCardShape,
-        colors = CardDefaults.cardColors(
-            containerColor = if (lesson.isOngoing)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+fun LessonCard(
+    lesson: LessonScheduleItem,
+    isCompact: Boolean = false
+) {
+    if (isCompact) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (lesson.isOngoing)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.surfaceContainerLow
+            )
         ) {
-            // Lesson Number & Time
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.width(52.dp)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = if (lesson.isOngoing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.size(28.dp)
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (lesson.isOngoing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "${lesson.lessonNumber}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (lesson.isOngoing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "${lesson.lessonNumber}",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = "${lesson.startTime}–${lesson.endTime}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (lesson.room.isNotBlank() && lesson.room != "—") {
+                            Text(
+                                text = " • ${lesson.room}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = lesson.subject,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = if (lesson.isOngoing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    if (lesson.mark != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Text(
+                                text = "${lesson.mark}",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = lesson.startTime,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                if (!lesson.homework.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "ДЗ: ${lesson.homework}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
+        }
+    } else {
+        // Standard view: cabinet moved to time row, teacher removed completely
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = ExpressiveCardShape,
+            colors = CardDefaults.cardColors(
+                containerColor = if (lesson.isOngoing)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.surfaceContainerLow
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (lesson.isOngoing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "${lesson.lessonNumber}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (lesson.isOngoing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        val timeAndRoom = buildString {
+                            append("${lesson.startTime} – ${lesson.endTime}")
+                            if (lesson.room.isNotBlank() && lesson.room != "—") {
+                                append(" • ${lesson.room}")
+                            }
+                        }
+                        Text(
+                            text = timeAndRoom,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
-            Spacer(modifier = Modifier.width(12.dp))
+                    if (lesson.mark != null) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Оценка: ${lesson.mark}${if (lesson.markWeight > 1.0) " (вес ${lesson.markWeight.toInt()})" else ""}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
 
-            // Subject, Room, Teacher
-            Column(modifier = Modifier.weight(1f)) {
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = lesson.subject,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     if (lesson.isOngoing) {
@@ -605,35 +613,28 @@ fun LessonCard(lesson: LessonScheduleItem) {
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${lesson.room} • ${lesson.teacherName}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
 
-            // Mark if graded
-            if (lesson.mark != null) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = ScoreGreenContainer
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                if (!lesson.homework.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "${lesson.mark}",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = ScoreGreen
-                        )
-                        if (lesson.markWeight > 1.0) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = "вес ${lesson.markWeight.toInt()}",
-                                fontSize = 8.sp,
-                                color = ScoreGreen
+                                text = "ДЗ: ",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = lesson.homework,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }

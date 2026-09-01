@@ -63,7 +63,7 @@ fun GiftsScreen(viewModel: MeshMainViewModel) {
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
+            contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
         ) {
             // 1. Clean Stars & Level Hero Card
             item {

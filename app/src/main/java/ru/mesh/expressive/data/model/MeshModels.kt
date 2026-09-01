@@ -40,6 +40,151 @@ data class LessonScheduleItem(
     val homework: String? = null
 )
 
+// ======================== Mobile API DTOs ========================
+
+data class LessonScheduleItemResponseDTO(
+    @SerializedName("id") val id: Any? = null,
+    @SerializedName("date") val date: String? = null,
+    @SerializedName("begin_time") val beginTime: String? = null,
+    @SerializedName("end_time") val endTime: String? = null,
+    @SerializedName("subject_name") val subjectName: String? = null,
+    @SerializedName("subject_id") val subjectId: Long? = null,
+    @SerializedName("room_name") val roomName: String? = null,
+    @SerializedName("room_number") val roomNumber: String? = null,
+    @SerializedName("building_name") val buildingName: String? = null,
+    @SerializedName("teacher") val teacher: TeacherResponseDTO? = null,
+    @SerializedName("lesson_homeworks") val lessonHomeworks: List<LessonHomeworkResponseDTO>? = null,
+    @SerializedName("marks") val marks: List<SimpleMarkResponseDTO>? = null,
+    @SerializedName("comment") val comment: String? = null,
+    @SerializedName("is_missed_lesson") val isMissedLesson: Boolean? = null,
+    @SerializedName("nonattendance_reason_id") val nonattendanceReasonId: Int? = null
+)
+
+data class TeacherResponseDTO(
+    @SerializedName("first_name") val firstName: String? = null,
+    @SerializedName("last_name") val lastName: String? = null,
+    @SerializedName("middle_name") val middleName: String? = null
+)
+
+data class LessonHomeworkResponseDTO(
+    @SerializedName("homework") val homework: String? = null,
+    @SerializedName("homework_entry_student_id") val homeworkEntryStudentId: Long? = null,
+    @SerializedName("is_done") val isDone: Boolean? = null,
+    @SerializedName("date_assigned_on") val dateAssignedOn: String? = null,
+    @SerializedName("date_prepared_for") val datePreparedFor: String? = null
+)
+
+data class SimpleMarkResponseDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("value") val value: String? = null,
+    @SerializedName("weight") val weight: Double? = null,
+    @SerializedName("is_exam") val isExam: Boolean? = null,
+    @SerializedName("is_point") val isPoint: Boolean? = null,
+    @SerializedName("control_form_name") val controlFormName: String? = null,
+    @SerializedName("comment") val comment: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null
+)
+
+data class HomeworksShortResponseDTO(
+    @SerializedName("payload") val payload: List<HomeworksShortItemDTO>? = null
+)
+
+data class HomeworksShortItemDTO(
+    @SerializedName("homework_entry_student_id") val homeworkEntryStudentId: Long? = null,
+    @SerializedName("subject_id") val subjectId: Long? = null,
+    @SerializedName("subject_name") val subjectName: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("date") val date: String? = null,
+    @SerializedName("date_assigned_on") val dateAssignedOn: String? = null,
+    @SerializedName("is_done") val isDone: Boolean? = null,
+    @SerializedName("materials_amount") val materialsAmount: com.google.gson.JsonElement? = null,
+    @SerializedName("has_written_answer") val hasWrittenAnswer: Boolean? = null,
+    @SerializedName("type") val type: String? = null
+)
+
+// ======================== EventCalendar API DTOs ========================
+
+data class EventCalendarResponse(
+    @SerializedName("total_count") val totalCount: Int = 0,
+    @SerializedName("response") val response: List<EventCalendarItemDTO>? = null
+)
+
+data class EventCalendarItemDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("source_id") val sourceId: String? = null,
+    @SerializedName("source") val source: String? = null,
+    @SerializedName("start_at") val startAt: String? = null,
+    @SerializedName("finish_at") val finishAt: String? = null,
+    @SerializedName("cancelled") val cancelled: Boolean? = false,
+    @SerializedName("is_missed_lesson") val isMissedLesson: Boolean? = false,
+    @SerializedName("lesson_type") val lessonType: String? = null,
+    @SerializedName("room_name") val roomName: String? = null,
+    @SerializedName("room_number") val roomNumber: String? = null,
+    @SerializedName("subject_id") val subjectId: Long? = null,
+    @SerializedName("subject_name") val subjectName: String? = null,
+    @SerializedName("teacher") val teacher: TeacherResponseDTO? = null,
+    @SerializedName("author") val author: TeacherResponseDTO? = null,
+    @SerializedName("homework") val homework: EventHomeworkDTO? = null,
+    @SerializedName("marks") val marks: List<EventMarkDTO>? = null
+)
+
+data class EventHomeworkDTO(
+    @SerializedName("presence_status_id") val presenceStatusId: Int? = null,
+    @SerializedName("total_count") val totalCount: Int? = null,
+    @SerializedName("execute_count") val executeCount: Int? = null,
+    @SerializedName("descriptions") val descriptions: List<String>? = null
+)
+
+data class EventMarkDTO(
+    @SerializedName("value") val value: String? = null,
+    @SerializedName("weight") val weight: Double? = 1.0,
+    @SerializedName("comment") val comment: String? = null,
+    @SerializedName("is_exam") val isExam: Boolean? = false
+)
+
+data class SubjectMarksShortResponseDTO(
+    @SerializedName("payload") val payload: List<SubjectMarksShortItemDTO>? = null
+)
+
+data class SubjectMarksShortItemDTO(
+    @SerializedName("subject_id") val subjectId: Long? = null,
+    @SerializedName("subject_name") val subjectName: String? = null,
+    @SerializedName("average") val average: String? = null,
+    @SerializedName("dynamic") val dynamic: String? = null,
+    @SerializedName("count") val count: Int? = null,
+    @SerializedName("marks") val marks: List<MarkWithDateDTO>? = null,
+    @SerializedName("periods") val periods: List<SubjectMarksPeriodItemDTO>? = null
+)
+
+data class MarkWithDateDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("value") val value: String? = null,
+    @SerializedName("weight") val weight: Double? = null,
+    @SerializedName("date") val date: String? = null,
+    @SerializedName("control_form_name") val controlFormName: String? = null,
+    @SerializedName("comment") val comment: String? = null,
+    @SerializedName("is_exam") val isExam: Boolean? = null
+)
+
+data class SubjectMarksPeriodItemDTO(
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("value") val value: String? = null,
+    @SerializedName("count") val count: Int? = null,
+    @SerializedName("marks") val marks: List<MarkWithDateDTO>? = null
+)
+
+data class MarkByDateItemDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("value") val value: String? = null,
+    @SerializedName("weight") val weight: Double? = null,
+    @SerializedName("date") val date: String? = null,
+    @SerializedName("subject_name") val subjectName: String? = null,
+    @SerializedName("subject_id") val subjectId: Long? = null,
+    @SerializedName("control_form_name") val controlFormName: String? = null,
+    @SerializedName("comment") val comment: String? = null,
+    @SerializedName("is_exam") val isExam: Boolean? = null
+)
+
 enum class AttendanceType {
     PRESENT, ABSENT_EXCUSED, ABSENT_ILLNESS, ABSENT_UNEXCUSED, LATE
 }

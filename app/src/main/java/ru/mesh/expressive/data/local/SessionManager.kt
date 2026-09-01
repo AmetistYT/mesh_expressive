@@ -3,8 +3,13 @@ package ru.mesh.expressive.data.local
 import android.content.Context
 import android.content.SharedPreferences
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import ru.mesh.expressive.data.model.*
+
 class SessionManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("mesh_expressive_prefs", Context.MODE_PRIVATE)
+    private val gson = Gson()
 
     var authToken: String?
         get() = prefs.getString("auth_token", null)
@@ -69,8 +74,115 @@ class SessionManager(context: Context) {
         get() = prefs.getInt("auto_refresh_interval_minutes", 15)
         set(value) = prefs.edit().putInt("auto_refresh_interval_minutes", value).apply()
 
+    var isOnboardingCompleted: Boolean
+        get() = prefs.getBoolean("is_onboarding_completed", false)
+        set(value) = prefs.edit().putBoolean("is_onboarding_completed", value).apply()
+
+    // ======================== Cache Storage ========================
+
+    private fun saveJson(key: String, value: Any?) {
+        if (value == null) {
+            prefs.edit().remove(key).apply()
+        } else {
+            try {
+                val json = gson.toJson(value)
+                prefs.edit().putString(key, json).apply()
+            } catch (_: Exception) {}
+        }
+    }
+
+    private inline fun <reified T> getJson(key: String): T? {
+        val json = prefs.getString(key, null) ?: return null
+        return try {
+            val type = object : TypeToken<T>() {}.type
+            gson.fromJson<T>(json, type)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    var cachedProfile: StudentProfile?
+        get() = getJson("cached_profile")
+        set(value) = saveJson("cached_profile", value)
+
+    var cachedScheduleToday: List<LessonScheduleItem>?
+        get() = getJson("cached_schedule_today")
+        set(value) = saveJson("cached_schedule_today", value)
+
+    var cachedScheduleTomorrow: List<LessonScheduleItem>?
+        get() = getJson("cached_schedule_tomorrow")
+        set(value) = saveJson("cached_schedule_tomorrow", value)
+
+    var cachedWeekSchedule: Map<String, List<LessonScheduleItem>>?
+        get() = getJson("cached_week_schedule")
+        set(value) = saveJson("cached_week_schedule", value)
+
+    var cachedHomeworkList: List<HomeworkItem>?
+        get() = getJson("cached_homework_list")
+        set(value) = saveJson("cached_homework_list", value)
+
+    var cachedSubjectSummaries: List<SubjectSummary>?
+        get() = getJson("cached_subject_summaries")
+        set(value) = saveJson("cached_subject_summaries", value)
+
+    var cachedGamificationProfile: GamificationProfile?
+        get() = getJson("cached_gamification_profile")
+        set(value) = saveJson("cached_gamification_profile", value)
+
+    var cachedStarLeaders: List<StarLeaderItem>?
+        get() = getJson("cached_star_leaders")
+        set(value) = saveJson("cached_star_leaders", value)
+
+    var cachedClassmates: List<ClassmateItem>?
+        get() = getJson("cached_classmates")
+        set(value) = saveJson("cached_classmates", value)
+
+    var cachedWorks: List<WorkItem>?
+        get() = getJson("cached_works")
+        set(value) = saveJson("cached_works", value)
+
+    var cachedRewards: List<RewardItem>?
+        get() = getJson("cached_rewards")
+        set(value) = saveJson("cached_rewards", value)
+
+    var cachedProfileRewards: List<ProfileRewardItem>?
+        get() = getJson("cached_profile_rewards")
+        set(value) = saveJson("cached_profile_rewards", value)
+
+    var cachedMealsBalance: MealsBalance?
+        get() = getJson("cached_meals_balance")
+        set(value) = saveJson("cached_meals_balance", value)
+
+    var cachedRatingInfo: RatingInfo?
+        get() = getJson("cached_rating_info")
+        set(value) = saveJson("cached_rating_info", value)
+
+    var cachedAttendance: AttendanceSummary?
+        get() = getJson("cached_attendance")
+        set(value) = saveJson("cached_attendance", value)
+
     fun logout() {
         prefs.edit().remove("auth_token").apply()
+        clearCache()
+    }
+
+    fun clearCache() {
+        prefs.edit()
+            .remove("cached_profile")
+            .remove("cached_schedule_today")
+            .remove("cached_schedule_tomorrow")
+            .remove("cached_homework_list")
+            .remove("cached_subject_summaries")
+            .remove("cached_gamification_profile")
+            .remove("cached_star_leaders")
+            .remove("cached_classmates")
+            .remove("cached_works")
+            .remove("cached_rewards")
+            .remove("cached_profile_rewards")
+            .remove("cached_meals_balance")
+            .remove("cached_rating_info")
+            .remove("cached_attendance")
+            .apply()
     }
 
     fun clear() {

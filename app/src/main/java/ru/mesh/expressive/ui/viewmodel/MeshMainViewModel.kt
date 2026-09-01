@@ -61,6 +61,7 @@ class MeshMainViewModel(
     val autoRefreshMinutes: StateFlow<Int> = _autoRefreshMinutes.asStateFlow()
 
     val studentProfile: StateFlow<StudentProfile> = repository.studentProfile
+    val weekSchedule: StateFlow<Map<String, List<LessonScheduleItem>>> = repository.weekSchedule
     val scheduleToday: StateFlow<List<LessonScheduleItem>> = repository.scheduleToday
     val scheduleTomorrow: StateFlow<List<LessonScheduleItem>> = repository.scheduleTomorrow
     val homeworkList: StateFlow<List<HomeworkItem>> = repository.homeworkList
@@ -75,11 +76,55 @@ class MeshMainViewModel(
     val mealsBalance: StateFlow<MealsBalance> = repository.mealsBalance
     val attendance: StateFlow<AttendanceSummary> = repository.attendance
 
+    private val _showOnboardingGuide = MutableStateFlow(!sessionManager.isOnboardingCompleted)
+    val showOnboardingGuide: StateFlow<Boolean> = _showOnboardingGuide.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            scheduleToday.collect { lessons ->
+                if (lessons.isNotEmpty()) {
+                    _dashboardDay.value = computeSmartDefaultDay(lessons)
+                }
+            }
+        }
+        if (sessionManager.isLoggedIn) {
+            refreshData()
+        }
+    }
+
+    fun computeSmartDefaultDay(todayLessons: List<LessonScheduleItem>): DashboardDay {
+        val cal = java.util.Calendar.getInstance()
+        val currentHour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val currentMinute = cal.get(java.util.Calendar.MINUTE)
+        val currentTimeMinutes = currentHour * 60 + currentMinute
+
+        val lastLesson = todayLessons.maxByOrNull { it.lessonNumber }
+        if (lastLesson != null && lastLesson.endTime.isNotBlank()) {
+            val parts = lastLesson.endTime.split(":")
+            if (parts.size >= 2) {
+                val endHour = parts[0].toIntOrNull() ?: 15
+                val endMinute = parts[1].toIntOrNull() ?: 0
+                val lessonEndMinutes = endHour * 60 + endMinute
+                return if (currentTimeMinutes >= lessonEndMinutes) DashboardDay.TOMORROW else DashboardDay.TODAY
+            }
+        }
+        return if (currentTimeMinutes >= 15 * 60) DashboardDay.TOMORROW else DashboardDay.TODAY
+    }
+
     val isLoggedIn: Boolean
         get() = sessionManager.isLoggedIn
 
     val currentAuthToken: String?
         get() = sessionManager.authToken
+
+    fun completeOnboardingGuide() {
+        sessionManager.isOnboardingCompleted = true
+        _showOnboardingGuide.value = false
+    }
+
+    fun restartOnboardingGuide() {
+        _showOnboardingGuide.value = true
+    }
 
     fun selectTab(tab: MainTab) {
         _currentTab.value = tab

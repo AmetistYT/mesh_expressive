@@ -33,9 +33,15 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
     var filter by remember { mutableStateOf("Все") }
     val filters = listOf("Все", "На завтра", "Невыполненные", "С тестами ЦДЗ")
 
-    val filteredList = remember(homeworkList, filter) {
+    val tomorrowDateFormatted = remember {
+        java.text.SimpleDateFormat("d MMMM", java.util.Locale("ru")).format(java.util.Date(System.currentTimeMillis() + 86400000L))
+    }
+
+    val filteredList = remember(homeworkList, filter, tomorrowDateFormatted) {
         when (filter) {
-            "На завтра" -> homeworkList.filter { it.dueDate == "Завтра" }
+            "На завтра" -> homeworkList.filter {
+                it.dueDate == "Завтра" || it.dueDate.equals(tomorrowDateFormatted, ignoreCase = true)
+            }
             "Невыполненные" -> homeworkList.filter { !it.isDone }
             "С тестами ЦДЗ" -> homeworkList.filter { it.hasDigitalTest }
             else -> homeworkList
@@ -57,7 +63,7 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
+            contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
         ) {
             // Header Progress Card
             item {

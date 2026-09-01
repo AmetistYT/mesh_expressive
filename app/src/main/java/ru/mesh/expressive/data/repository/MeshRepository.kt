@@ -1,9 +1,11 @@
 package ru.mesh.expressive.data.repository
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.mesh.expressive.data.local.SessionManager
 import ru.mesh.expressive.data.model.*
@@ -203,6 +205,9 @@ class MeshRepository(private val sessionManager: SessionManager) {
     private val _studentProfile = MutableStateFlow(StudentProfile())
     val studentProfile: StateFlow<StudentProfile> = _studentProfile.asStateFlow()
 
+    private val _weekSchedule = MutableStateFlow<Map<String, List<LessonScheduleItem>>>(emptyMap())
+    val weekSchedule: StateFlow<Map<String, List<LessonScheduleItem>>> = _weekSchedule.asStateFlow()
+
     private val _scheduleToday = MutableStateFlow<List<LessonScheduleItem>>(emptyList())
     val scheduleToday: StateFlow<List<LessonScheduleItem>> = _scheduleToday.asStateFlow()
 
@@ -243,9 +248,32 @@ class MeshRepository(private val sessionManager: SessionManager) {
     val attendance: StateFlow<AttendanceSummary> = _attendance.asStateFlow()
 
     init {
-        if (!sessionManager.isLoggedIn) {
+        if (sessionManager.isLoggedIn) {
+            loadCachedData()
+            CoroutineScope(Dispatchers.IO).launch {
+                fetchRemoteData()
+            }
+        } else {
             loadDemoData()
         }
+    }
+
+    private fun loadCachedData() {
+        sessionManager.cachedProfile?.let { _studentProfile.value = it }
+        sessionManager.cachedWeekSchedule?.let { _weekSchedule.value = it }
+        sessionManager.cachedScheduleToday?.let { _scheduleToday.value = it }
+        sessionManager.cachedScheduleTomorrow?.let { _scheduleTomorrow.value = it }
+        sessionManager.cachedHomeworkList?.let { _homeworkList.value = it }
+        sessionManager.cachedSubjectSummaries?.let { _subjectSummaries.value = it }
+        sessionManager.cachedGamificationProfile?.let { _gamificationProfile.value = it }
+        sessionManager.cachedStarLeaders?.let { _starLeaders.value = it }
+        sessionManager.cachedClassmates?.let { _classmates.value = it }
+        sessionManager.cachedWorks?.let { _works.value = it }
+        sessionManager.cachedRewards?.let { _rewards.value = it }
+        sessionManager.cachedProfileRewards?.let { _profileRewards.value = it }
+        sessionManager.cachedMealsBalance?.let { _mealsBalance.value = it }
+        sessionManager.cachedRatingInfo?.let { _ratingInfo.value = it }
+        sessionManager.cachedAttendance?.let { _attendance.value = it }
     }
 
     suspend fun saveAuthToken(token: String) {
@@ -256,6 +284,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
 
     private fun clearToEmpty() {
         _studentProfile.value = StudentProfile()
+        _weekSchedule.value = emptyMap()
         _scheduleToday.value = emptyList()
         _scheduleTomorrow.value = emptyList()
         _homeworkList.value = emptyList()
@@ -279,14 +308,34 @@ class MeshRepository(private val sessionManager: SessionManager) {
 
         val cleanToken = if (rawToken.startsWith("Bearer ")) rawToken.substring(7) else rawToken
         val bearerToken = "Bearer $cleanToken"
-        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val todayDate = Date()
+        val todayStr = sdf.format(todayDate)
+        val tomorrowStr = sdf.format(Date(System.currentTimeMillis() + 86400000L))
+        val weekAgoStr = sdf.format(Date(System.currentTimeMillis() - 7L * 86400000L))
+        val twoWeeksAheadStr = sdf.format(Date(System.currentTimeMillis() + 14L * 86400000L))
+
+        val cal = java.util.Calendar.getInstance()
+        cal.firstDayOfWeek = java.util.Calendar.MONDAY
+        cal.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
+        val mondayStr = sdf.format(cal.time)
+        cal.add(java.util.Calendar.DAY_OF_MONTH, 6)
+        val sundayStr = sdf.format(cal.time)
 
         var dynamicProfileId = sessionManager.profileId.toLongOrNull() ?: 0L
         var dynamicStudentId = sessionManager.studentId
+        var dynamicPersonId = sessionManager.personId
 
+        // 1. Получение профиля (Mobile API / Web API)
         try {
-            // 1. Динамическое получение профиля и детей из Web API
-            val profileResp = MeshNetworkClient.familyWebApi.getProfile(cleanToken, dynamicProfileId, "familyweb")
+            val mobileProfileResp = MeshNetworkClient.familyMobileApi.getMobileProfile(bearerToken, dynamicProfileId)
+            val profileResp = if (mobileProfileResp.isSuccessful && mobileProfileResp.body() != null) {
+                mobileProfileResp
+            } else {
+                MeshNetworkClient.familyWebApi.getProfile(cleanToken, dynamicProfileId, "familyweb")
+            }
+
             if (profileResp.isSuccessful && profileResp.body() != null) {
                 val body = profileResp.body()!!
                 val child = body.children.firstOrNull()
@@ -306,13 +355,15 @@ class MeshRepository(private val sessionManager: SessionManager) {
                     sessionManager.classUid = cUid
                     sessionManager.classUnitId = cUnitId
                     sessionManager.studentId = sId
+                    sessionManager.personId = pId
                     if (dynamicProfileId == 0L) dynamicProfileId = pId
                     dynamicStudentId = sId
+                    dynamicPersonId = pId
 
-                    _studentProfile.value = StudentProfile(
+                    val profileObj = StudentProfile(
                         id = child.id?.toString() ?: "",
                         personId = child.id ?: 0L,
-                        contingentGuid = child.contingentGuid ?: "",
+                        contingentGuid = child.contingentGuid ?: _studentProfile.value.contingentGuid,
                         classUid = cUid,
                         classUnitId = cUnitId,
                         classLevelId = child.classLevelId ?: 0,
@@ -320,15 +371,20 @@ class MeshRepository(private val sessionManager: SessionManager) {
                         lastName = child.lastName ?: "",
                         middleName = child.middleName ?: "",
                         className = child.className ?: "",
-                        schoolName = child.school?.shortName ?: child.school?.name ?: ""
+                        schoolName = child.school?.shortName ?: child.school?.name ?: "",
+                        gpa = _studentProfile.value.gpa
                     )
+                    _studentProfile.value = profileObj
+                    sessionManager.cachedProfile = profileObj
                 } else if (prof != null) {
-                    _studentProfile.value = _studentProfile.value.copy(
+                    val profileObj = _studentProfile.value.copy(
                         id = prof.id?.toString() ?: "",
                         firstName = prof.firstName ?: "",
                         lastName = prof.lastName ?: "",
                         middleName = prof.middleName ?: ""
                     )
+                    _studentProfile.value = profileObj
+                    sessionManager.cachedProfile = profileObj
                 }
             }
         } catch (_: Exception) {}
@@ -336,30 +392,229 @@ class MeshRepository(private val sessionManager: SessionManager) {
         val activeGuid = _studentProfile.value.contingentGuid
         val activeClassUid = _studentProfile.value.classUid
 
+        val extraHwList = mutableListOf<HomeworkItem>()
+
+        // 2. Расписание уроков на неделю (EventCalendar API)
         try {
-            // 2. Геймификация и Звезды
+            if (activeGuid.isNotBlank()) {
+                val evResp = MeshNetworkClient.eventCalendarApi.getEvents(
+                    token = bearerToken,
+                    profileId = dynamicProfileId,
+                    personIds = activeGuid,
+                    beginDate = mondayStr,
+                    endDate = sundayStr
+                )
+                if (evResp.isSuccessful && evResp.body()?.response != null) {
+                    val eventsList = evResp.body()!!.response.orEmpty()
+                    val eventMap = mutableMapOf<String, MutableList<LessonScheduleItem>>()
+
+                    eventsList.sortedBy { it.startAt }.forEach { ev ->
+                        val startIso = ev.startAt ?: ""
+                        val dateKey = if (startIso.length >= 10) startIso.substring(0, 10) else todayStr
+                        val startTime = if (startIso.length >= 16) startIso.substring(11, 16) else ""
+                        val finishIso = ev.finishAt ?: ""
+                        val endTime = if (finishIso.length >= 16) finishIso.substring(11, 16) else ""
+
+                        val roomFormatted = when {
+                            !ev.roomNumber.isNullOrBlank() -> "Каб. ${ev.roomNumber}"
+                            !ev.roomName.isNullOrBlank() -> "Каб. ${ev.roomName}"
+                            else -> "Кабинет"
+                        }
+
+                        val teacherObj = ev.teacher ?: ev.author
+                        val teacherFormatted = if (teacherObj != null) {
+                            val f = teacherObj.firstName?.firstOrNull()?.let { "$it." } ?: ""
+                            val m = teacherObj.middleName?.firstOrNull()?.let { "$it." } ?: ""
+                            "${teacherObj.lastName ?: ""} $f$m".trim()
+                        } else "Учитель"
+
+                        val hwDesc = ev.homework?.descriptions?.filter { it.isNotBlank() }?.joinToString("; ")
+                        val firstMark = ev.marks?.firstOrNull()
+                        val markVal = firstMark?.value?.toIntOrNull()
+                        val markW = firstMark?.weight ?: 1.0
+
+                        val currentDayLessons = eventMap.getOrPut(dateKey) { mutableListOf() }
+                        val lessonNum = currentDayLessons.size + 1
+
+                        val lessonItem = LessonScheduleItem(
+                            id = ev.id?.toString() ?: "ev_${lessonNum}_$dateKey",
+                            subject = ev.subjectName ?: "Урок",
+                            lessonNumber = lessonNum,
+                            startTime = startTime,
+                            endTime = endTime,
+                            room = roomFormatted,
+                            teacherName = if (teacherFormatted.isNotBlank()) teacherFormatted else "Учитель",
+                            isOngoing = false,
+                            isCanceled = ev.cancelled == true || ev.isMissedLesson == true,
+                            mark = markVal,
+                            markWeight = markW,
+                            homework = hwDesc
+                        )
+                        currentDayLessons.add(lessonItem)
+
+                        if (!hwDesc.isNullOrBlank()) {
+                            extraHwList.add(
+                                HomeworkItem(
+                                    id = "ev_hw_${ev.id ?: lessonNum}",
+                                    subject = ev.subjectName ?: "Предмет",
+                                    description = hwDesc,
+                                    date = dateKey,
+                                    dueDate = formatApiDateToReadable(dateKey, tomorrowStr),
+                                    isDone = (ev.homework.executeCount ?: 0) >= (ev.homework.totalCount ?: 1),
+                                    hasDigitalTest = false
+                                )
+                            )
+                        }
+                    }
+
+                    if (eventMap.isNotEmpty()) {
+                        _weekSchedule.value = eventMap
+                        sessionManager.cachedWeekSchedule = eventMap
+                        _scheduleToday.value = eventMap[todayStr].orEmpty()
+                        _scheduleTomorrow.value = eventMap[tomorrowStr].orEmpty()
+                        sessionManager.cachedScheduleToday = _scheduleToday.value
+                        sessionManager.cachedScheduleTomorrow = _scheduleTomorrow.value
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 3. Домашние задания (Mobile API + EventCalendar)
+        try {
+            if (dynamicStudentId > 0) {
+                val hwResp = MeshNetworkClient.familyMobileApi.getHomeworksShort(
+                    bearerToken, dynamicProfileId, "familymp", "diary-mobile", dynamicStudentId, weekAgoStr, twoWeeksAheadStr
+                )
+                val primaryHwList = if (hwResp.isSuccessful && hwResp.body() != null) {
+                    val payload = hwResp.body()!!.payload.orEmpty()
+                    payload.map { item ->
+                        val dateAssigned = item.dateAssignedOn ?: ""
+                        val dueDate = item.date ?: ""
+                        val formattedDueDate = formatApiDateToReadable(dueDate, tomorrowStr)
+                        HomeworkItem(
+                            id = item.homeworkEntryStudentId?.toString() ?: "",
+                            subject = item.subjectName ?: "Предмет",
+                            description = item.description ?: "Задание",
+                            date = dateAssigned,
+                            dueDate = formattedDueDate,
+                            isDone = item.isDone == true,
+                            hasDigitalTest = false
+                        )
+                    }
+                } else emptyList()
+
+                val combinedHw = (primaryHwList + extraHwList).distinctBy { "${it.subject}_${it.description.trim()}" }
+                if (combinedHw.isNotEmpty()) {
+                    _homeworkList.value = combinedHw
+                    sessionManager.cachedHomeworkList = combinedHw
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 4. Оценки и сводки по предметам (Mobile API)
+        try {
+            if (dynamicStudentId > 0) {
+                val marksResp = MeshNetworkClient.familyMobileApi.getSubjectMarksShort(
+                    bearerToken, dynamicProfileId, "familymp", "diary-mobile", dynamicStudentId
+                )
+                if (marksResp.isSuccessful && marksResp.body()?.payload != null) {
+                    val subjectsList = marksResp.body()!!.payload.orEmpty()
+                    val summaries = subjectsList.map { subj ->
+                        val avg = subj.average?.replace(",", ".")?.toDoubleOrNull() ?: 0.0
+                        val marksList = subj.marks.orEmpty().map { m ->
+                            MarkItem(
+                                id = m.id?.toString() ?: "",
+                                subject = subj.subjectName ?: "",
+                                value = m.value?.toIntOrNull() ?: 5,
+                                weight = m.weight ?: 1.0,
+                                date = m.date ?: "",
+                                topic = m.controlFormName ?: m.comment ?: "",
+                                isExam = m.isExam == true
+                            )
+                        }
+                        SubjectSummary(
+                            subject = subj.subjectName ?: "Предмет",
+                            averageMark = avg,
+                            marks = marksList,
+                            targetMark = 4.60
+                        )
+                    }
+                    if (summaries.isNotEmpty()) {
+                        _subjectSummaries.value = summaries
+                        sessionManager.cachedSubjectSummaries = summaries
+
+                        val validGpas = summaries.map { it.averageMark }.filter { it > 0.0 }
+                        if (validGpas.isNotEmpty()) {
+                            val overallGpa = validGpas.average()
+                            val updatedProfile = _studentProfile.value.copy(gpa = overallGpa)
+                            _studentProfile.value = updatedProfile
+                            sessionManager.cachedProfile = updatedProfile
+                        }
+                    }
+                } else {
+                    val rawMarksResp = MeshNetworkClient.familyMobileApi.getMarks(
+                        bearerToken, dynamicProfileId, "familymp", "diary-mobile", dynamicStudentId, "2026-08-01", todayStr
+                    )
+                    if (rawMarksResp.isSuccessful && !rawMarksResp.body().isNullOrEmpty()) {
+                        val rawMarks = rawMarksResp.body()!!
+                        val grouped = rawMarks.groupBy { it.subjectName ?: "Предмет" }
+                        val summaries = grouped.map { (subjName, markItems) ->
+                            val marksList = markItems.map { m ->
+                                MarkItem(
+                                    id = m.id?.toString() ?: "",
+                                    subject = subjName,
+                                    value = m.value?.toIntOrNull() ?: 5,
+                                    weight = m.weight ?: 1.0,
+                                    date = m.date ?: "",
+                                    topic = m.controlFormName ?: m.comment ?: "",
+                                    isExam = m.isExam == true
+                                )
+                            }
+                            val totalWeight = marksList.sumOf { it.weight }
+                            val weightedSum = marksList.sumOf { it.value * it.weight }
+                            val avg = if (totalWeight > 0.0) weightedSum / totalWeight else 0.0
+                            SubjectSummary(
+                                subject = subjName,
+                                averageMark = avg,
+                                marks = marksList,
+                                targetMark = 4.60
+                            )
+                        }
+                        if (summaries.isNotEmpty()) {
+                            _subjectSummaries.value = summaries
+                            sessionManager.cachedSubjectSummaries = summaries
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        try {
+            // 5. Геймификация и Звезды
             if (activeGuid.isNotBlank()) {
                 val gamifResp = MeshNetworkClient.gamificationApi.getGamificationProfile(
                     bearerToken, dynamicProfileId, "familymp", "diary-mobile", activeGuid
                 )
                 if (gamifResp.isSuccessful && gamifResp.body() != null) {
                     val g = gamifResp.body()!!
-                    _gamificationProfile.value = g.copy(
+                    val updated = g.copy(
                         infiniteStarsOverride = sessionManager.infiniteStarsOverride,
                         coinsCount = if (sessionManager.infiniteStarsOverride) 999999999 else g.coinsCount,
                         dailyGiftAvailable = false
                     )
+                    _gamificationProfile.value = updated
+                    sessionManager.cachedGamificationProfile = updated
                 }
             }
 
-            // 2.1 Реальный рейтинг щедрости (POST /persons/rating)
+            // 5.1 Реальный рейтинг щедрости (POST /persons/rating)
             if (activeClassUid.isNotBlank()) {
                 val ratingResp = MeshNetworkClient.gamificationApi.getPersonsRating(
                     bearerToken, dynamicProfileId, "familymp", "diary-mobile",
                     PersonsRatingRequestBody(filters = ClassUidFilter(classUid = activeClassUid))
                 )
 
-                // 2.2 Поиск одноклассников (POST /persons/search)
+                // 5.2 Поиск одноклассников (POST /persons/search)
                 val searchResp = MeshNetworkClient.gamificationApi.getPersonsSearch(
                     bearerToken, dynamicProfileId, "familymp", "diary-mobile",
                     PersonsSearchFilterBody(filters = ClassUidFilter(classUid = activeClassUid))
@@ -389,6 +644,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
                         )
                     }
                     _starLeaders.value = leadersList
+                    sessionManager.cachedStarLeaders = leadersList
 
                     val classmatesList = items.map { item ->
                         val isMe = (myGamifId.isNotEmpty() && item.gamificationId == myGamifId) ||
@@ -405,6 +661,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
                         )
                     }
                     _classmates.value = classmatesList
+                    sessionManager.cachedClassmates = classmatesList
                 }
             }
 
@@ -414,6 +671,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
             )
             if (worksResp.isSuccessful && worksResp.body() != null) {
                 _works.value = worksResp.body()!!.items
+                sessionManager.cachedWorks = worksResp.body()!!.items
             }
 
             val rewardsResp = MeshNetworkClient.gamificationApi.searchRewards(
@@ -421,6 +679,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
             )
             if (rewardsResp.isSuccessful && rewardsResp.body() != null) {
                 _rewards.value = rewardsResp.body()!!.items
+                sessionManager.cachedRewards = rewardsResp.body()!!.items
             }
 
             val feedResp = MeshNetworkClient.gamificationApi.getProfileRewards(
@@ -428,11 +687,12 @@ class MeshRepository(private val sessionManager: SessionManager) {
             )
             if (feedResp.isSuccessful && feedResp.body() != null) {
                 _profileRewards.value = feedResp.body()!!
+                sessionManager.cachedProfileRewards = feedResp.body()!!
             }
         } catch (_: Exception) {}
 
         try {
-            // 3. Москвёнок (Питание)
+            // 6. Москвёнок (Питание)
             if (activeGuid.isNotBlank()) {
                 val clientIdsJson = "{\"personId\":\"$activeGuid\"}"
                 val mealsResp = MeshNetworkClient.mealsApi.getBalance(
@@ -443,11 +703,13 @@ class MeshRepository(private val sessionManager: SessionManager) {
                     if (b.balance != null) {
                         val rawBalance = b.balance
                         val balanceRub = rawBalance.toDouble() / 100.0
-                        _mealsBalance.value = _mealsBalance.value.copy(
+                        val updated = _mealsBalance.value.copy(
                             clientBalanceRub = balanceRub,
                             dailyLimitRub = b.expenseConstraints?.expenseDayLimit,
                             cardId = b.contractId?.toString() ?: _mealsBalance.value.cardId
                         )
+                        _mealsBalance.value = updated
+                        sessionManager.cachedMealsBalance = updated
                     }
                 }
 
@@ -470,53 +732,99 @@ class MeshRepository(private val sessionManager: SessionManager) {
                             isDebit = true
                         )
                     }
-                    _mealsBalance.value = _mealsBalance.value.copy(transactions = txList)
+                    val updated = _mealsBalance.value.copy(transactions = txList)
+                    _mealsBalance.value = updated
+                    sessionManager.cachedMealsBalance = updated
                 }
             }
         } catch (_: Exception) {}
 
         try {
-            // 4. Рейтинг успеваемости
+            // 7. Рейтинг успеваемости
             if (activeGuid.isNotBlank() && _studentProfile.value.classUnitId > 0) {
                 val ratingResp = MeshNetworkClient.ratingApi.getClassRank(
                     bearerToken, "familymp", "mobile", activeGuid, _studentProfile.value.classUnitId, todayStr
                 )
                 if (ratingResp.isSuccessful && ratingResp.body() != null) {
                     _ratingInfo.value = ratingResp.body()!!
+                    sessionManager.cachedRatingInfo = ratingResp.body()!!
                 }
             }
         } catch (_: Exception) {}
 
         try {
-            // 5. Расписание уроков
-            if (dynamicStudentId > 0) {
-                val schedResp = MeshNetworkClient.familyWebApi.getSchedule(
-                    cleanToken, dynamicProfileId, "familyweb", dynamicStudentId, todayStr
-                )
-                if (schedResp.isSuccessful && schedResp.body() != null) {
-                    _scheduleToday.value = schedResp.body()!!
-                }
-            }
-        } catch (_: Exception) {}
-
-        try {
-            // 6. Посещаемость
+            // 8. Посещаемость
             if (dynamicStudentId > 0) {
                 val attResp = MeshNetworkClient.familyWebApi.getAttendance(
                     cleanToken, dynamicProfileId, "familyweb", dynamicStudentId, "2026-08-01", todayStr
                 )
                 if (attResp.isSuccessful && attResp.body() != null) {
-                    _attendance.value = _attendance.value.copy(
+                    val updated = _attendance.value.copy(
                         totalLessons = attResp.body()!!.attendance.size
                     )
+                    _attendance.value = updated
+                    sessionManager.cachedAttendance = updated
                 }
             }
         } catch (_: Exception) {}
     }
 
+    private fun mapLessonDtoList(dtoList: List<LessonScheduleItemResponseDTO>): List<LessonScheduleItem> {
+        return dtoList.mapIndexed { index, dto ->
+            val teacherFormatted = if (dto.teacher != null) {
+                val f = dto.teacher.firstName?.firstOrNull()?.let { "$it." } ?: ""
+                val m = dto.teacher.middleName?.firstOrNull()?.let { "$it." } ?: ""
+                "${dto.teacher.lastName ?: ""} $f$m".trim()
+            } else ""
+
+            val roomFormatted = when {
+                !dto.roomNumber.isNullOrBlank() -> "Каб. ${dto.roomNumber}"
+                !dto.roomName.isNullOrBlank() -> "Каб. ${dto.roomName}"
+                else -> "Кабинет"
+            }
+
+            val hwText = dto.lessonHomeworks?.firstOrNull()?.homework
+            val firstMark = dto.marks?.firstOrNull()
+            val markVal = firstMark?.value?.toIntOrNull()
+            val markW = firstMark?.weight ?: 1.0
+
+            LessonScheduleItem(
+                id = dto.id?.toString() ?: "lesson_$index",
+                subject = dto.subjectName ?: "Урок",
+                lessonNumber = index + 1,
+                startTime = dto.beginTime ?: "",
+                endTime = dto.endTime ?: "",
+                room = roomFormatted,
+                teacherName = if (teacherFormatted.isNotBlank()) teacherFormatted else "Учитель",
+                isOngoing = false,
+                isCanceled = dto.isMissedLesson == true,
+                mark = markVal,
+                markWeight = markW,
+                homework = hwText
+            )
+        }
+    }
+
+    private fun formatApiDateToReadable(apiDate: String, tomorrowStr: String): String {
+        if (apiDate.isBlank()) return ""
+        if (apiDate.startsWith(tomorrowStr)) return "Завтра"
+        return try {
+            val cleanDate = if (apiDate.length >= 10) apiDate.substring(0, 10) else apiDate
+            val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(cleanDate)
+            if (parsed != null) {
+                SimpleDateFormat("d MMMM", Locale("ru")).format(parsed)
+            } else {
+                apiDate
+            }
+        } catch (_: Exception) {
+            apiDate
+        }
+    }
+
     private fun loadDemoData() {
         _studentProfile.value = DemoMockDataProvider.studentProfile
         _scheduleToday.value = DemoMockDataProvider.scheduleToday
+        _scheduleTomorrow.value = emptyList()
         _homeworkList.value = DemoMockDataProvider.homeworkList
         _subjectSummaries.value = DemoMockDataProvider.subjectSummaries
         _gamificationProfile.value = DemoMockDataProvider.gamificationProfile
@@ -624,8 +932,33 @@ class MeshRepository(private val sessionManager: SessionManager) {
     }
 
     fun toggleHomework(id: String) {
-        _homeworkList.value = _homeworkList.value.map {
-            if (it.id == id) it.copy(isDone = !it.isDone) else it
+        val currentList = _homeworkList.value
+        var targetHw: HomeworkItem? = null
+        val updated = currentList.map {
+            if (it.id == id) {
+                val newState = !it.isDone
+                val copy = it.copy(isDone = newState)
+                targetHw = copy
+                copy
+            } else it
+        }
+        _homeworkList.value = updated
+        sessionManager.cachedHomeworkList = updated
+
+        val hId = id.toLongOrNull()
+        val token = sessionManager.authToken
+        if (hId != null && !token.isNullOrBlank() && targetHw != null) {
+            val cleanToken = if (token.startsWith("Bearer ")) token else "Bearer $token"
+            val profileId = sessionManager.profileId.toLongOrNull() ?: 0L
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    if (targetHw!!.isDone) {
+                        MeshNetworkClient.familyMobileApi.markHomeworkDone(cleanToken, profileId, "familymp", "diary-mobile", hId)
+                    } else {
+                        MeshNetworkClient.familyMobileApi.markHomeworkUndone(cleanToken, profileId, "familymp", "diary-mobile", hId)
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 

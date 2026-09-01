@@ -31,8 +31,8 @@ fun AttendanceScreen(viewModel: MeshMainViewModel) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
     ) {
         // Attendance Overview Card
         item {

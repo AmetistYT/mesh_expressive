@@ -55,7 +55,7 @@ fun ClassmatesScreen(viewModel: MeshMainViewModel) {
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
+            contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
         ) {
             // 1. Class Header Card
             item {
@@ -113,6 +113,52 @@ fun ClassmatesScreen(viewModel: MeshMainViewModel) {
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+
+                        if (classmates.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            Button(
+                                onClick = {
+                                    val sortedList = classmates.sortedWith(
+                                        compareBy(String.CASE_INSENSITIVE_ORDER) { 
+                                            "${it.lastName} ${it.firstName}".trim() 
+                                        }
+                                    )
+                                    val text = buildString {
+                                        appendLine("Список класса ${profile.className} (${sortedList.size} уч.):")
+                                        sortedList.forEachIndexed { index, cm ->
+                                            val fullName = "${cm.lastName} ${cm.firstName}".trim()
+                                            appendLine("${index + 1}. $fullName")
+                                        }
+                                    }
+                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("Список класса", text)
+                                    clipboard.setPrimaryClip(clip)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Список класса (${sortedList.size} уч.) скопирован в буфер обмена",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = PillShape,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Скопировать список класса (А-Я)",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }

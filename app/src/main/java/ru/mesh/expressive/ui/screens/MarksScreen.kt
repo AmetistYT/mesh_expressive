@@ -99,21 +99,6 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
                                 }
-
-                                if (profile.gpa > 0.0) {
-                                    Surface(
-                                        shape = PillShape,
-                                        color = MaterialTheme.colorScheme.primary
-                                    ) {
-                                        Text(
-                                            text = if (profile.gpa >= 4.5) "Отличник" else "Хорошист",
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimary
-                                        )
-                                    }
-                                }
                             }
 
                             Spacer(modifier = Modifier.height(14.dp))
@@ -431,6 +416,7 @@ fun SubjectMarksCard(
     var isExpanded by remember { mutableStateOf(false) }
 
     val markColor = when {
+        subjectSummary.averageMark <= 0.0 -> MaterialTheme.colorScheme.onSurfaceVariant
         subjectSummary.averageMark >= 4.5 -> ScoreGreen
         subjectSummary.averageMark >= 3.6 -> ScoreBlue
         subjectSummary.averageMark >= 2.7 -> ScoreOrange
@@ -438,6 +424,7 @@ fun SubjectMarksCard(
     }
 
     val markBgColor = when {
+        subjectSummary.averageMark <= 0.0 -> MaterialTheme.colorScheme.surfaceVariant
         subjectSummary.averageMark >= 4.5 -> ScoreGreenContainer
         subjectSummary.averageMark >= 3.6 -> ScoreBlueContainer
         subjectSummary.averageMark >= 2.7 -> ScoreOrangeContainer
@@ -480,7 +467,7 @@ fun SubjectMarksCard(
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text(
-                            text = String.format("%.2f", subjectSummary.averageMark),
+                            text = if (subjectSummary.averageMark > 0.0) String.format("%.2f", subjectSummary.averageMark) else "—",
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,

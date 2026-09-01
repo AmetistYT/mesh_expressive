@@ -15,14 +15,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.mesh.expressive.data.local.SessionManager
 import ru.mesh.expressive.data.repository.MeshRepository
+import ru.mesh.expressive.ui.components.expressiveBounceClick
 import ru.mesh.expressive.ui.screens.*
 import ru.mesh.expressive.ui.theme.*
 import ru.mesh.expressive.ui.viewmodel.MainTab
@@ -64,12 +68,18 @@ fun MeshMainApp(
     onToggleMonet: (Boolean) -> Unit
 ) {
     val currentTab by viewModel.currentTab.collectAsState()
+    val showOnboardingGuide by viewModel.showOnboardingGuide.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val profile by viewModel.studentProfile.collectAsState()
     val classmates by viewModel.classmates.collectAsState()
 
-    ModalNavigationDrawer(
+    var menuTargetRect by remember { mutableStateOf<Rect?>(null) }
+    var profileTargetRect by remember { mutableStateOf<Rect?>(null) }
+    var dockTargetRect by remember { mutableStateOf<Rect?>(null) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
@@ -241,12 +251,18 @@ fun MeshMainApp(
                             )
                         },
                         navigationIcon = {
-                            IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                            IconButton(
+                                onClick = { coroutineScope.launch { drawerState.open() } },
+                                modifier = Modifier.onGloballyPositioned { menuTargetRect = it.boundsInRoot() }
+                            ) {
                                 Icon(Icons.Default.Menu, contentDescription = "Меню")
                             }
                         },
                         actions = {
-                            IconButton(onClick = { viewModel.selectTab(MainTab.SETTINGS) }) {
+                            IconButton(
+                                onClick = { viewModel.selectTab(MainTab.SETTINGS) },
+                                modifier = Modifier.onGloballyPositioned { profileTargetRect = it.boundsInRoot() }
+                            ) {
                                 if (profile.firstName.isNotBlank() && profile.lastName.isNotBlank()) {
                                     val initials = "${profile.firstName.first()}${profile.lastName.first()}"
                                     Box(
@@ -279,50 +295,12 @@ fun MeshMainApp(
                     )
                 }
             },
-            bottomBar = {
-                if (currentTab != MainTab.AUTH) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        tonalElevation = 8.dp
-                    ) {
-                        NavigationBarItem(
-                            selected = currentTab == MainTab.DASHBOARD,
-                            onClick = { viewModel.selectTab(MainTab.DASHBOARD) },
-                            icon = { Icon(if (currentTab == MainTab.DASHBOARD) Icons.Filled.Home else Icons.Outlined.Home, contentDescription = "Главная") },
-                            label = { Text("Главная", style = MaterialTheme.typography.labelSmall) }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == MainTab.SCHEDULE,
-                            onClick = { viewModel.selectTab(MainTab.SCHEDULE) },
-                            icon = { Icon(if (currentTab == MainTab.SCHEDULE) Icons.Filled.CalendarToday else Icons.Outlined.CalendarToday, contentDescription = "Расписание") },
-                            label = { Text("Расписание", style = MaterialTheme.typography.labelSmall) }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == MainTab.HOMEWORK,
-                            onClick = { viewModel.selectTab(MainTab.HOMEWORK) },
-                            icon = { Icon(if (currentTab == MainTab.HOMEWORK) Icons.Filled.EditNote else Icons.Outlined.EditNote, contentDescription = "Задания") },
-                            label = { Text("Задания", style = MaterialTheme.typography.labelSmall) }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == MainTab.MARKS,
-                            onClick = { viewModel.selectTab(MainTab.MARKS) },
-                            icon = { Icon(if (currentTab == MainTab.MARKS) Icons.Filled.Grade else Icons.Outlined.Grade, contentDescription = "Оценки") },
-                            label = { Text("Оценки", style = MaterialTheme.typography.labelSmall) }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == MainTab.GIFTS,
-                            onClick = { viewModel.selectTab(MainTab.GIFTS) },
-                            icon = { Icon(if (currentTab == MainTab.GIFTS) Icons.Filled.CardGiftcard else Icons.Outlined.CardGiftcard, contentDescription = "Подарки") },
-                            label = { Text("Подарки", style = MaterialTheme.typography.labelSmall) }
-                        )
-                    }
-                }
-            }
+            containerColor = MaterialTheme.colorScheme.surface
         ) { paddingValues ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(if (currentTab == MainTab.AUTH) PaddingValues(0.dp) else paddingValues)
+                    .padding(top = if (currentTab == MainTab.AUTH) 0.dp else paddingValues.calculateTopPadding())
             ) {
                 Crossfade(targetState = currentTab, label = "TabCrossfade") { tab ->
                     when (tab) {
@@ -350,7 +328,28 @@ fun MeshMainApp(
                         )
                     }
                 }
+
+                if (currentTab != MainTab.AUTH) {
+                    ExpressiveFloatingDock(
+                        currentTab = currentTab,
+                        onTabSelected = { viewModel.selectTab(it) },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .onGloballyPositioned { dockTargetRect = it.boundsInRoot() }
+                    )
+                }
+
+                }
             }
+        }
+
+        if (showOnboardingGuide && currentTab != MainTab.AUTH) {
+            ru.mesh.expressive.ui.components.OnboardingGuideOverlay(
+                menuRect = menuTargetRect,
+                profileRect = profileTargetRect,
+                dockRect = dockTargetRect,
+                onDismiss = { viewModel.completeOnboardingGuide() }
+            )
         }
     }
 }
@@ -375,4 +374,92 @@ fun DrawerMenuItem(
             selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
     )
+}
+
+@Composable
+fun ExpressiveFloatingDock(
+    currentTab: MainTab,
+    onTabSelected: (MainTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = PillShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+            shadowElevation = 8.dp,
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val tabs = listOf(
+                    Triple(MainTab.DASHBOARD, Icons.Filled.Home to Icons.Outlined.Home, "Главная"),
+                    Triple(MainTab.SCHEDULE, Icons.Filled.CalendarToday to Icons.Outlined.CalendarToday, "Расписание"),
+                    Triple(MainTab.HOMEWORK, Icons.Filled.EditNote to Icons.Outlined.EditNote, "Задания"),
+                    Triple(MainTab.MARKS, Icons.Filled.Grade to Icons.Outlined.Grade, "Оценки"),
+                    Triple(MainTab.GIFTS, Icons.Filled.CardGiftcard to Icons.Outlined.CardGiftcard, "Подарки")
+                )
+
+                tabs.forEach { (tab, icons, label) ->
+                    val isSelected = currentTab == tab
+                    val animBgColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.75f, stiffness = 400f),
+                        label = "dockItemBg"
+                    )
+                    val contentColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        label = "dockItemColor"
+                    )
+
+                    Surface(
+                        shape = PillShape,
+                        color = animBgColor,
+                        modifier = Modifier
+                            .clip(PillShape)
+                            .expressiveBounceClick { onTabSelected(tab) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = if (isSelected) 14.dp else 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) icons.first else icons.second,
+                                contentDescription = label,
+                                tint = contentColor,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            AnimatedVisibility(
+                                visible = isSelected,
+                                enter = fadeIn() + expandHorizontally(),
+                                exit = fadeOut() + shrinkHorizontally()
+                            ) {
+                                Row {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = contentColor,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
