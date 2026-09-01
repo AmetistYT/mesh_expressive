@@ -1,17 +1,19 @@
-# Ignore decompiled files and bundles in GitHub Linguist language statistics
-decompiled/** linguist-vendored
-decompiled/** linguist-generated=true
-decompiled/** linguist-detectable=false
+# Exclude all files in decompiled directory from GitHub language stats
+decompiled/* linguist-vendored linguist-generated -linguist-detectable linguist-detectable=false
+decompiled/** linguist-vendored linguist-generated -linguist-detectable linguist-detectable=false
+decompiled/dnevnik_decompiled.js linguist-vendored linguist-generated -linguist-detectable linguist-detectable=false
+decompiled/dnevnik_strings.txt linguist-vendored linguist-generated -linguist-detectable linguist-detectable=false
+decompiled/mesh_reverse_engineering_report.md linguist-documentation
 
-*.js linguist-vendored
-*.js linguist-generated=true
-*.js linguist-detectable=false
+# Exclude any JS or bundle files repository-wide
+*.js linguist-vendored linguist-generated -linguist-detectable linguist-detectable=false
+*.bundle linguist-vendored linguist-generated -linguist-detectable linguist-detectable=false
+*.bundle.js linguist-vendored linguist-generated -linguist-detectable linguist-detectable=false
 
-*.bundle linguist-vendored
-*.bundle linguist-generated=true
-*.bundle.js linguist-vendored
-*.bundle.js linguist-generated=true
+# Exclude APK directory
+apk/* linguist-vendored -linguist-detectable linguist-detectable=false
+apk/** linguist-vendored -linguist-detectable linguist-detectable=false
 
-# Keep Kotlin files detectable as primary repository language
-*.kt linguist-detectable=true
-*.kts linguist-detectable=true
+# Prioritize Kotlin
+*.kt linguist-detectable
+*.kts linguist-detectable
