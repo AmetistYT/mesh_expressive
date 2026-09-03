@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.mesh.expressive.data.model.*
+import ru.mesh.expressive.ui.components.ExpressiveChipSegmentedToggle
 import ru.mesh.expressive.ui.components.ExpressivePullToRefreshBox
 import ru.mesh.expressive.ui.components.M3WavyProgressIndicator
 import ru.mesh.expressive.ui.components.expressiveBounceClick
@@ -198,58 +199,76 @@ fun DashboardScreen(
         // 2. Overview Row: GPA & Moskvionok Balance
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // GPA Card
                 Card(
                     modifier = Modifier
                         .weight(1f)
+                        .fillMaxHeight()
                         .expressiveBounceClick { onNavigate(MainTab.MARKS) },
                     shape = ExpressiveCardShape,
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Ср. балл",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.TrendingUp,
+                                    contentDescription = null,
+                                    tint = ScoreGreen,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Ср. балл",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Icon(
-                                imageVector = Icons.Default.TrendingUp,
-                                contentDescription = null,
-                                tint = ScoreGreen,
-                                modifier = Modifier.size(18.dp)
+                                text = if (profile.gpa > 0.0) String.format(java.util.Locale.getDefault(), "%.2f", profile.gpa) else "—",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (profile.gpa > 0.0) ScoreGreen else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (profile.gpa > 0.0) String.format(java.util.Locale.getDefault(), "%.2f", profile.gpa) else "—",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (profile.gpa > 0.0) ScoreGreen else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        if (profile.gpa > 0.0) {
-                            M3WavyProgressIndicator(
-                                progress = (profile.gpa / 5.0).toFloat().coerceIn(0f, 1f),
-                                color = ScoreGreen,
-                                amplitude = 3f,
-                                wavelength = 28f
-                            )
-                        } else {
-                            Text(
-                                text = "Оценок пока нет",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(22.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (profile.gpa > 0.0) {
+                                M3WavyProgressIndicator(
+                                    progress = (profile.gpa / 5.0).toFloat().coerceIn(0f, 1f),
+                                    color = ScoreGreen,
+                                    strokeWidth = 3.5.dp,
+                                    amplitude = 2.5f,
+                                    wavelength = 36f
+                                )
+                            } else {
+                                Text(
+                                    text = "Оценок пока нет",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -258,43 +277,65 @@ fun DashboardScreen(
                 Card(
                     modifier = Modifier
                         .weight(1f)
+                        .fillMaxHeight()
                         .expressiveBounceClick { onNavigate(MainTab.MEALS) },
                     shape = ExpressiveCardShape,
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Москвёнок",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.Restaurant,
+                                    contentDescription = null,
+                                    tint = MoskvionokBlue,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Москвёнок",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Icon(
-                                imageVector = Icons.Default.Restaurant,
-                                contentDescription = null,
-                                tint = MoskvionokBlue,
-                                modifier = Modifier.size(18.dp)
+                                text = String.format(java.util.Locale.getDefault(), "%.2f ₽", meals.clientBalanceRub),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = String.format(java.util.Locale.getDefault(), "%.2f ₽", meals.clientBalanceRub),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (meals.hotMealSubscribed) "Горячее питание" else "Буфет",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MoskvionokBlue
-                        )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(22.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Surface(
+                                shape = PillShape,
+                                color = MoskvionokBlueContainer.copy(alpha = 0.6f)
+                            ) {
+                                Text(
+                                    text = if (meals.hotMealSubscribed) "Горячее питание" else "Буфет",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MoskvionokBlue
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -314,24 +355,13 @@ fun DashboardScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    // Expressive Pill Segmented Selector
-                    Surface(
-                        shape = PillShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
-                    ) {
-                        Row(modifier = Modifier.padding(4.dp)) {
-                            SegmentedPill(
-                                title = "Сегодня",
-                                isSelected = dashboardDay == DashboardDay.TODAY,
-                                onClick = { viewModel.selectDashboardDay(DashboardDay.TODAY) }
-                            )
-                            SegmentedPill(
-                                title = "Завтра",
-                                isSelected = dashboardDay == DashboardDay.TOMORROW,
-                                onClick = { viewModel.selectDashboardDay(DashboardDay.TOMORROW) }
-                            )
-                        }
-                    }
+                    // Expressive Chip Segmented Selector (Чипсины)
+                    ExpressiveChipSegmentedToggle(
+                        items = listOf(DashboardDay.TODAY, DashboardDay.TOMORROW),
+                        selectedItem = dashboardDay,
+                        onItemSelected = { viewModel.selectDashboardDay(it) },
+                        label = { when (it) { DashboardDay.TODAY -> "Сегодня"; DashboardDay.TOMORROW -> "Завтра" } }
+                    )
                 }
             }
         }

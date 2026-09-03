@@ -78,6 +78,10 @@ class SessionManager(context: Context) {
         get() = prefs.getBoolean("is_onboarding_completed", false)
         set(value) = prefs.edit().putBoolean("is_onboarding_completed", value).apply()
 
+    var marksViewMode: String
+        get() = prefs.getString("marks_view_mode", "BY_SUBJECT") ?: "BY_SUBJECT"
+        set(value) = prefs.edit().putString("marks_view_mode", value).apply()
+
     // ======================== Cache Storage ========================
 
     private fun saveJson(key: String, value: Any?) {

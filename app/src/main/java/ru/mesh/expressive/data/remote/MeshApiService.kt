@@ -2,7 +2,9 @@ package ru.mesh.expressive.data.remote
 
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -156,11 +158,66 @@ data class DayBalanceResponse(
     val items: List<MealTransaction> = emptyList()
 )
 
-data class AttendanceResponse(
-    @SerializedName("student_id")
-    val studentId: Long? = null,
+data class AttendanceResponseDTO(
     @SerializedName("attendance")
-    val attendance: List<Any> = emptyList()
+    val attendance: List<AttendanceDayItemDTO> = emptyList(),
+    @SerializedName("days_count")
+    val daysCount: Int? = null,
+    @SerializedName("year_description")
+    val yearDescription: String? = null
+)
+
+data class AttendanceDayItemDTO(
+    @SerializedName("date")
+    val date: String = "",
+    @SerializedName("summary")
+    val summary: String? = null,
+    @SerializedName("notified")
+    val notified: Boolean? = null,
+    @SerializedName("reason_id")
+    val reasonId: Int? = null,
+    @SerializedName("is_system")
+    val isSystem: Boolean? = null,
+    @SerializedName("description")
+    val description: String? = null,
+    @SerializedName("parent_profile_id")
+    val parentProfileId: Long? = null,
+    @SerializedName("lessons")
+    val lessons: List<AttendanceLessonItemDTO> = emptyList()
+)
+
+data class AttendanceLessonItemDTO(
+    @SerializedName("subject_id")
+    val subjectId: Long? = null,
+    @SerializedName("subject_name")
+    val subjectName: String? = null,
+    @SerializedName("bell_id")
+    val bellId: Long? = null,
+    @SerializedName("notified")
+    val notified: Boolean? = null,
+    @SerializedName("reason_id")
+    val reasonId: Int? = null,
+    @SerializedName("schedule_item_id")
+    val scheduleItemId: Long? = null,
+    @SerializedName("description")
+    val description: String? = null,
+    @SerializedName("lesson_education_type")
+    val lessonEducationType: String? = null,
+    @SerializedName("health_status")
+    val healthStatus: String? = null
+)
+
+data class EmiasMedicalRecommendationDTO(
+    @SerializedName("id")
+    val id: Long = 0L,
+    @SerializedName("date")
+    val date: String = "",
+    @SerializedName("student_profile_id")
+    val studentProfileId: Long = 0L,
+    @SerializedName("subject_ids")
+    val subjectIds: List<Long> = emptyList(),
+    @SerializedName("type")
+    val type: String = "SICK"
 )
 
 interface MeshFamilyWebApi {
@@ -179,7 +236,113 @@ interface MeshFamilyWebApi {
         @Query("student_id") studentId: Long,
         @Query("from") from: String,
         @Query("to") to: String
-    ): Response<AttendanceResponse>
+    ): Response<AttendanceResponseDTO>
+}
+
+interface MeshEmiasApi {
+    @GET("api/ej/core/family/v1/emias_medical_recommendations")
+    suspend fun getEmiasMedicalRecommendations(
+        @Header("Authorization") token: String,
+        @Header("X-Mes-Subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Header("Profile-Id") profileId: Long = 0L,
+        @Query("person_ids") personIds: String? = null,
+        @Query("class_unit_id") classUnitId: Long? = null,
+        @Query("student_profile_id") studentProfileId: Long? = null,
+        @Query("start_date") startDate: String? = null,
+        @Query("end_date") endDate: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 50
+    ): Response<List<EmiasMedicalRecommendationDTO>>
+}
+
+data class VisitListResponseDTO(
+    @SerializedName("payload")
+    val payload: List<DateVisitsDTO> = emptyList()
+)
+
+data class DateVisitsDTO(
+    @SerializedName("date")
+    val date: String = "",
+    @SerializedName("visits")
+    val visits: List<VisitItemDTO> = emptyList()
+)
+
+data class VisitItemDTO(
+    @SerializedName("in")
+    val timeIn: String? = null,
+    @SerializedName("out")
+    val timeOut: String? = null,
+    @SerializedName("duration")
+    val duration: String? = null,
+    @SerializedName("isIncomplete")
+    val isIncomplete: Boolean? = false
+)
+
+interface MeshEntrancesApi {
+    @GET("api/pass/entrances/v1/visit_durations")
+    suspend fun getVisitDurations(
+        @Header("Authorization") token: String,
+        @Header("X-Mes-Subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Header("Profile-Id") profileId: Long = 0L,
+        @Query("personId") personId: String,
+        @Query("from") from: String,
+        @Query("to") to: String
+    ): Response<VisitListResponseDTO>
+}
+
+data class MeshAvatarDTO(
+    @SerializedName("id")
+    val id: Long = 0L,
+    @SerializedName("url")
+    val url: String = "",
+    @SerializedName("default")
+    val isDefault: Boolean = false
+)
+
+interface MeshAvatarApi {
+    @GET("api/avatarmanagement/v1/{userUuid}")
+    suspend fun getAvatars(
+        @Header("Authorization") token: String,
+        @Header("Auth-Token") authToken: String,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("userUuid") userUuid: String
+    ): Response<List<MeshAvatarDTO>>
+
+    @Multipart
+    @POST("api/avatarmanagement/v1/{userUuid}")
+    suspend fun uploadAvatar(
+        @Header("Authorization") token: String,
+        @Header("Auth-Token") authToken: String,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("userUuid") userUuid: String,
+        @Part file: MultipartBody.Part,
+        @Part("is_default") isDefault: RequestBody
+    ): Response<MeshAvatarDTO>
+
+    @DELETE("api/avatarmanagement/v1/{userUuid}/{avatarId}")
+    suspend fun deleteAvatar(
+        @Header("Authorization") token: String,
+        @Header("Auth-Token") authToken: String,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("userUuid") userUuid: String,
+        @Path("avatarId") avatarId: Long
+    ): Response<Unit>
+
+    @PATCH("api/avatarmanagement/v1/{userUuid}/{avatarId}")
+    suspend fun setDefaultAvatar(
+        @Header("Authorization") token: String,
+        @Header("Auth-Token") authToken: String,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("userUuid") userUuid: String,
+        @Path("avatarId") avatarId: Long,
+        @Query("is_default") isDefault: Boolean = true
+    ): Response<Unit>
 }
 
 interface MeshFamilyMobileApi {
@@ -190,6 +353,17 @@ interface MeshFamilyMobileApi {
         @Header("x-mes-subsystem") subsystem: String = "familymp",
         @Header("client-type") clientType: String = "diary-mobile"
     ): Response<WebProfileResponse>
+
+    @GET("attendance")
+    suspend fun getAttendance(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Query("student_id") studentId: Long,
+        @Query("from") from: String,
+        @Query("to") to: String
+    ): Response<AttendanceResponseDTO>
 
     @GET("lesson_schedule_items")
     suspend fun getLessonScheduleItems(
@@ -480,5 +654,32 @@ object MeshNetworkClient {
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(MeshMealsApi::class.java)
+    }
+
+    val emiasApi: MeshEmiasApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://school.mos.ru/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(MeshEmiasApi::class.java)
+    }
+
+    val entrancesApi: MeshEntrancesApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://school.mos.ru/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(MeshEntrancesApi::class.java)
+    }
+
+    val avatarApi: MeshAvatarApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://school.mos.ru/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(MeshAvatarApi::class.java)
     }
 }

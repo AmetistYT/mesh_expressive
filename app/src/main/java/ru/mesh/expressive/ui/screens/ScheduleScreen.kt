@@ -1,13 +1,15 @@
 package ru.mesh.expressive.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import ru.mesh.expressive.data.model.AttendanceType
 import ru.mesh.expressive.data.model.LessonScheduleItem
 import ru.mesh.expressive.ui.components.ExpressivePullToRefreshBox
+import ru.mesh.expressive.ui.components.expressiveBounceClick
 import ru.mesh.expressive.ui.theme.*
 import ru.mesh.expressive.ui.viewmodel.MeshMainViewModel
 
@@ -46,29 +50,40 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
         "$month $year"
     }
 
-    val daysDates = remember {
+    data class DaySelectorItem(
+        val dayIndex: Int,
+        val dayName: String,
+        val dayNumber: String,
+        val dateStr: String,
+        val isToday: Boolean
+    )
+
+    val weekDays = remember {
         val cal = java.util.Calendar.getInstance()
         cal.firstDayOfWeek = java.util.Calendar.MONDAY
         cal.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-        (0 until 6).map {
-            val d = sdf.format(cal.time)
+        val dayNames = listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ")
+        val todayCal = java.util.Calendar.getInstance()
+        val curDateStr = sdf.format(todayCal.time)
+
+        (0 until 6).map { i ->
+            val dateStr = sdf.format(cal.time)
+            val dayNum = cal.get(java.util.Calendar.DAY_OF_MONTH).toString()
+            val item = DaySelectorItem(
+                dayIndex = i,
+                dayName = dayNames[i],
+                dayNumber = dayNum,
+                dateStr = dateStr,
+                isToday = dateStr == curDateStr
+            )
             cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
-            d
+            item
         }
     }
 
-    val daysOfWeek = remember {
-        val cal = java.util.Calendar.getInstance()
-        cal.firstDayOfWeek = java.util.Calendar.MONDAY
-        cal.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
-        val dayNames = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб")
-        (0 until 6).map { i ->
-            val dayNum = cal.get(java.util.Calendar.DAY_OF_MONTH)
-            val str = "${dayNames[i]}, $dayNum"
-            cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
-            str
-        }
+    val daysDates = remember(weekDays) {
+        weekDays.map { it.dateStr }
     }
 
     val todayDayOfWeekIndex = remember {
@@ -115,79 +130,141 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
+            contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp)
         ) {
-            // Week Navigator Header
+            // Compact Weekly Calendar Strip (Chips)
             item {
-                Row(
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    shape = ExpressiveCardShape,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
                 ) {
-                    Text(
-                        text = "Расписание уроков",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Surface(
-                        shape = PillShape,
-                        color = MaterialTheme.colorScheme.primaryContainer
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
+                        // Month & Quick Today Action Row
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CalendarToday,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = currentMonthYear,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(start = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = currentMonthYear,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            if (selectedDayIndex != todayDayOfWeekIndex) {
+                                Surface(
+                                    shape = PillShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier
+                                        .clip(PillShape)
+                                        .expressiveBounceClick { selectedDayIndex = todayDayOfWeekIndex }
+                                ) {
+                                    Text(
+                                        text = "Сегодня",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
                         }
-                    }
-                }
-            }
 
-            // Horizontal Day Selector
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    itemsIndexed(daysOfWeek) { index, day ->
-                        val isSelected = index == selectedDayIndex
-                        val isToday = index == todayDayOfWeekIndex
-                        val bgColor by animateColorAsState(
-                            targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                            label = "dayBg"
-                        )
-                        val textColor by animateColorAsState(
-                            targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                            label = "dayText"
-                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        Surface(
-                            shape = PillShape,
-                            color = bgColor,
-                            modifier = Modifier
-                                .clip(PillShape)
-                                .clickable { selectedDayIndex = index }
+                        // True Material 3 Day Chips Row (Пн–Сб)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (isToday) "$day (сегодня)" else day,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium,
-                                color = textColor
-                            )
+                            weekDays.forEach { day ->
+                                val isSelected = day.dayIndex == selectedDayIndex
+                                val isToday = day.isToday
+
+                                val chipBgColor by animateColorAsState(
+                                    targetValue = when {
+                                        isSelected -> MaterialTheme.colorScheme.primary
+                                        isToday -> MaterialTheme.colorScheme.primaryContainer
+                                        else -> MaterialTheme.colorScheme.surfaceContainerHigh
+                                    },
+                                    animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
+                                    label = "chipBg"
+                                )
+
+                                val dayNameColor by animateColorAsState(
+                                    targetValue = when {
+                                        isSelected -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                                        isToday -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    label = "dayNameColor"
+                                )
+
+                                val dayNumColor by animateColorAsState(
+                                    targetValue = when {
+                                        isSelected -> MaterialTheme.colorScheme.onPrimary
+                                        isToday -> MaterialTheme.colorScheme.onPrimaryContainer
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    },
+                                    label = "dayNumColor"
+                                )
+
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(36.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .expressiveBounceClick { selectedDayIndex = day.dayIndex },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = chipBgColor,
+                                    border = if (isToday && !isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Text(
+                                                text = day.dayName,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium,
+                                                color = dayNameColor
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = day.dayNumber,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = dayNumColor
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

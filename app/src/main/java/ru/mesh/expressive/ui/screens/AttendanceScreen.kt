@@ -4,8 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -121,40 +126,12 @@ fun AttendanceScreen(viewModel: MeshMainViewModel) {
 
         // Section Title: EMIAS
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Справки и освобождения ЕМИАС",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Surface(
-                    shape = PillShape,
-                    color = MoskvionokBlueContainer
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.VerifiedUser,
-                            contentDescription = null,
-                            tint = MoskvionokBlue,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "ЕМИАС",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MoskvionokBlue
-                        )
-                    }
-                }
-            }
+            Text(
+                text = "Справки и освобождения ЕМИАС",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         if (attendance.emiasCertificates.isEmpty()) {
@@ -162,7 +139,7 @@ fun AttendanceScreen(viewModel: MeshMainViewModel) {
                 ExpressiveEmptyState(
                     title = "Здесь ничего нет",
                     subtitle = "Активных медицинских справок ЕМИАС нет",
-                    icon = Icons.Default.VerifiedUser
+                    icon = Icons.Default.LocalHospital
                 )
             }
         } else {
@@ -184,8 +161,8 @@ fun AttendanceScreen(viewModel: MeshMainViewModel) {
                                 Icon(
                                     imageVector = Icons.Default.LocalHospital,
                                     contentDescription = null,
-                                    tint = MoskvionokBlue,
-                                    modifier = Modifier.size(22.dp)
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -197,14 +174,14 @@ fun AttendanceScreen(viewModel: MeshMainViewModel) {
 
                             Surface(
                                 shape = PillShape,
-                                color = ScoreGreenContainer
+                                color = if (cert.status == "Действительна" || cert.status == "Активна") ScoreGreenContainer else MaterialTheme.colorScheme.surfaceVariant
                             ) {
                                 Text(
                                     text = cert.status,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = ScoreGreen
+                                    color = if (cert.status == "Действительна" || cert.status == "Активна") ScoreGreen else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -228,11 +205,201 @@ fun AttendanceScreen(viewModel: MeshMainViewModel) {
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "Освобождение от физкультуры до: ${cert.physicalCultureExemptionUntil}",
+                            text = "Освобождение от физкультуры: ${cert.physicalCultureExemptionUntil}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold
                         )
+                    }
+                }
+            }
+        }
+
+        // Section Title: Moskvenok School Visits
+        item {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Проходы и турникеты (Москвёнок)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        if (attendance.visits.isEmpty()) {
+            item {
+                ExpressiveEmptyState(
+                    title = "Нет данных о проходах",
+                    subtitle = "Информация от турникетов «Москвёнок» появится после первого входа в школу",
+                    icon = Icons.Default.MeetingRoom
+                )
+            }
+        } else {
+            items(attendance.visits) { visit ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveCardShape,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = visit.date,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            if (visit.isCurrentlyInSchool) {
+                                Surface(
+                                    shape = PillShape,
+                                    color = ScoreGreenContainer
+                                ) {
+                                    Text(
+                                        text = "В школе",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ScoreGreen
+                                    )
+                                }
+                            } else if (visit.duration.isNotEmpty() && visit.duration != "-") {
+                                Surface(
+                                    shape = PillShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Text(
+                                        text = visit.duration,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Time In
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = ScoreGreenContainer.copy(alpha = 0.6f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Login,
+                                        contentDescription = null,
+                                        tint = ScoreGreen,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column {
+                                        Text(
+                                            text = "Вход",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 9.sp,
+                                            color = ScoreGreen
+                                        )
+                                        Text(
+                                            text = visit.timeIn,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = ScoreGreen
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Time Out
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (visit.isCurrentlyInSchool) {
+                                    ScoreGreenContainer.copy(alpha = 0.3f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                                        contentDescription = null,
+                                        tint = if (visit.isCurrentlyInSchool) ScoreGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column {
+                                        Text(
+                                            text = "Выход",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = visit.timeOut,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (visit.isCurrentlyInSchool) ScoreGreen else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Duration / Time at school
+                            if (visit.duration.isNotEmpty() && visit.duration != "-") {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Schedule,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Column {
+                                            Text(
+                                                text = "В школе",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontSize = 9.sp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = visit.duration,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

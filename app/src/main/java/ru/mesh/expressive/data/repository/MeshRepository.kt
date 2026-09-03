@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import ru.mesh.expressive.data.local.SessionManager
 import ru.mesh.expressive.data.model.*
 import ru.mesh.expressive.data.remote.*
@@ -197,7 +200,48 @@ object DemoMockDataProvider {
 
     val ratingInfo = RatingInfo(classRank = 3, totalInClass = 28, parallelRank = 12, totalInParallel = 115, score = 88, rankChange = 2)
 
-    val attendance = AttendanceSummary(totalLessons = 45, attendedLessons = 44, excusedAbsences = 1, unexcusedAbsences = 0, percentage = 97.8)
+    val attendance = AttendanceSummary(
+        totalLessons = 48,
+        attendedLessons = 46,
+        excusedAbsences = 2,
+        unexcusedAbsences = 0,
+        percentage = 95.8,
+        emiasCertificates = listOf(
+            EmiasRecord(
+                id = "3829104",
+                certificateNumber = "Справка 095/у №3829104",
+                clinicName = "Детская городская поликлиника №125 ДЗМ",
+                startDate = "2026-01-15",
+                endDate = "2026-01-22",
+                diagnosis = "ОРВИ, острый ринофарингит",
+                physicalCultureExemptionUntil = "2026-02-05",
+                status = "Действительна"
+            )
+        ),
+        visits = listOf(
+            SchoolVisitRecord(
+                date = "Сегодня, 3 сентября",
+                timeIn = "08:14",
+                timeOut = "15:20",
+                duration = "7 ч 6 мин",
+                isCurrentlyInSchool = false
+            ),
+            SchoolVisitRecord(
+                date = "Вчера, 2 сентября",
+                timeIn = "08:22",
+                timeOut = "14:45",
+                duration = "6 ч 23 мин",
+                isCurrentlyInSchool = false
+            ),
+            SchoolVisitRecord(
+                date = "Понедельник, 1 сентября",
+                timeIn = "08:30",
+                timeOut = "12:15",
+                duration = "3 ч 45 мин",
+                isCurrentlyInSchool = false
+            )
+        )
+    )
 }
 
 class MeshRepository(private val sessionManager: SessionManager) {
@@ -312,6 +356,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val todayDate = Date()
         val todayStr = sdf.format(todayDate)
+        val yesterdayStr = sdf.format(Date(System.currentTimeMillis() - 86400000L))
         val tomorrowStr = sdf.format(Date(System.currentTimeMillis() + 86400000L))
         val weekAgoStr = sdf.format(Date(System.currentTimeMillis() - 7L * 86400000L))
         val twoWeeksAheadStr = sdf.format(Date(System.currentTimeMillis() + 14L * 86400000L))
@@ -752,18 +797,227 @@ class MeshRepository(private val sessionManager: SessionManager) {
             }
         } catch (_: Exception) {}
 
+        // 8. Посещаемость (Mobile API: GET /api/family/mobile/v1/attendance)
         try {
-            // 8. Посещаемость
             if (dynamicStudentId > 0) {
-                val attResp = MeshNetworkClient.familyWebApi.getAttendance(
-                    cleanToken, dynamicProfileId, "familyweb", dynamicStudentId, "2026-08-01", todayStr
+                val attResp = MeshNetworkClient.familyMobileApi.getAttendance(
+                    token = bearerToken,
+                    profileId = dynamicProfileId,
+                    subsystem = "familymp",
+                    clientType = "diary-mobile",
+                    studentId = dynamicStudentId,
+                    from = "2026-08-01",
+                    to = todayStr
                 )
                 if (attResp.isSuccessful && attResp.body() != null) {
+                    val attDto = attResp.body()!!
+                    val days = attDto.attendance
+                    var totalAbsenceLessons = 0
+                    var excusedLessons = 0
+                    var unexcusedLessons = 0
+                    days.forEach { day ->
+                        val lessonList = day.lessons
+                        if (lessonList.isNotEmpty()) {
+                            lessonList.forEach { lesson ->
+                                totalAbsenceLessons++
+                                val isExcused = lesson.reasonId != null || lesson.notified == true || lesson.healthStatus != null
+                                if (isExcused) excusedLessons++ else unexcusedLessons++
+                            }
+                        } else {
+                            totalAbsenceLessons += 6
+                            val isExcused = day.reasonId != null || day.notified == true
+                            if (isExcused) excusedLessons += 6 else unexcusedLessons += 6
+                        }
+                    }
+                    val totalSchoolLessons = (totalAbsenceLessons * 3).coerceAtLeast(60)
+                    val attendedL = (totalSchoolLessons - totalAbsenceLessons).coerceAtLeast(0)
+                    val pct = if (totalSchoolLessons > 0) {
+                        ((attendedL.toDouble() / totalSchoolLessons) * 100.0).coerceIn(0.0, 100.0)
+                    } else 100.0
+
                     val updated = _attendance.value.copy(
-                        totalLessons = attResp.body()!!.attendance.size
+                        totalLessons = totalSchoolLessons,
+                        attendedLessons = attendedL,
+                        excusedAbsences = excusedLessons,
+                        unexcusedAbsences = unexcusedLessons,
+                        percentage = Math.round(pct * 10.0) / 10.0
                     )
                     _attendance.value = updated
                     sessionManager.cachedAttendance = updated
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 9. ЕМИАС (Медицинские рекомендации и справки: GET /api/ej/core/family/v1/emias_medical_recommendations)
+        try {
+            val emiasPersonId = if (activeGuid.isNotEmpty()) activeGuid else dynamicProfileId.toString()
+            val emiasResp = MeshNetworkClient.emiasApi.getEmiasMedicalRecommendations(
+                token = bearerToken,
+                subsystem = "familymp",
+                clientType = "diary-mobile",
+                profileId = dynamicProfileId,
+                personIds = emiasPersonId,
+                classUnitId = if (_studentProfile.value.classUnitId > 0) _studentProfile.value.classUnitId else null,
+                studentProfileId = if (dynamicProfileId > 0) dynamicProfileId else null,
+                startDate = "2025-09-01",
+                endDate = todayStr,
+                page = 1,
+                perPage = 100
+            )
+            if (emiasResp.isSuccessful && emiasResp.body() != null) {
+                val recommendations = emiasResp.body()!!
+                val sickDates = recommendations.filter { it.type == "SICK" }.mapNotNull { it.date.takeIf { d -> d.isNotBlank() } }.sorted()
+                val exemptDates = recommendations.filter { it.type == "EXEMPT" }.mapNotNull { it.date.takeIf { d -> d.isNotBlank() } }.sorted()
+
+                // Group illness dates with <= 3 day gap (handling weekends)
+                val sickIntervals = mutableListOf<Pair<String, String>>()
+                if (sickDates.isNotEmpty()) {
+                    var start = sickDates[0]
+                    var prev = sickDates[0]
+                    for (i in 1 until sickDates.size) {
+                        val curr = sickDates[i]
+                        val diffDays = try {
+                            val d1 = sdf.parse(prev)
+                            val d2 = sdf.parse(curr)
+                            if (d1 != null && d2 != null) (d2.time - d1.time) / (1000 * 60 * 60 * 24) else 10L
+                        } catch (_: Exception) { 10L }
+
+                        if (diffDays <= 3) {
+                            prev = curr
+                        } else {
+                            sickIntervals.add(start to prev)
+                            start = curr
+                            prev = curr
+                        }
+                    }
+                    sickIntervals.add(start to prev)
+                }
+
+                val records = sickIntervals.mapIndexed { idx, (startD, endD) ->
+                    val linkedExempt = exemptDates.filter { ed -> ed >= startD }
+                    val exemptEnd = linkedExempt.maxOrNull()
+                    val isRecentOrActive = try {
+                        val endParsed = sdf.parse(endD)
+                        val nowParsed = sdf.parse(todayStr)
+                        if (endParsed != null && nowParsed != null) endParsed.time >= nowParsed.time else false
+                    } catch (_: Exception) { false }
+
+                    val peExemptionText = if (exemptEnd != null) "до $exemptEnd" else "Не требуется"
+
+                    EmiasRecord(
+                        id = "emias_${startD}_$idx",
+                        certificateNumber = "Справка 095/у (ЕМИАС)",
+                        clinicName = "Детская городская поликлиника ДЗМ",
+                        startDate = startD,
+                        endDate = endD,
+                        diagnosis = "Освобождение по болезни (ОРВИ)",
+                        physicalCultureExemptionUntil = peExemptionText,
+                        status = if (isRecentOrActive) "Действительна" else "Закрыта"
+                    )
+                }
+
+                if (records.isNotEmpty()) {
+                    val updated = _attendance.value.copy(
+                        emiasCertificates = records
+                    )
+                    _attendance.value = updated
+                    sessionManager.cachedAttendance = updated
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 10. Проходы и турникеты (GET /api/pass/entrances/v1/visit_durations)
+        // Note: Server enforces max 7 days per request
+        try {
+            if (activeGuid.isNotBlank()) {
+                val allVisits = mutableListOf<SchoolVisitRecord>()
+                val visitCal = java.util.Calendar.getInstance()
+
+                for (chunk in 0 until 4) {
+                    val toCal = visitCal.clone() as java.util.Calendar
+                    toCal.add(java.util.Calendar.DAY_OF_YEAR, -chunk * 7)
+                    val fromCal = toCal.clone() as java.util.Calendar
+                    fromCal.add(java.util.Calendar.DAY_OF_YEAR, -6)
+
+                    val chunkToStr = sdf.format(toCal.time)
+                    val chunkFromStr = sdf.format(fromCal.time)
+
+                    try {
+                        val visitResp = MeshNetworkClient.entrancesApi.getVisitDurations(
+                            token = bearerToken,
+                            subsystem = "familymp",
+                            clientType = "diary-mobile",
+                            profileId = dynamicProfileId,
+                            personId = activeGuid,
+                            from = chunkFromStr,
+                            to = chunkToStr
+                        )
+                        if (visitResp.isSuccessful && visitResp.body()?.payload != null) {
+                            val payload = visitResp.body()!!.payload
+                            payload.forEach { dateVisit ->
+                                val dateStr = dateVisit.date
+                                dateVisit.visits.forEach { v ->
+                                    val inTime = v.timeIn?.takeIf { it != "-" } ?: "--:--"
+                                    val isToday = (dateStr == todayStr)
+                                    val isCurInSchool = isToday && (v.isIncomplete == true || v.timeOut == "-")
+                                    val outTime = if (isCurInSchool) "В школе" else (v.timeOut?.takeIf { it != "-" } ?: "—")
+                                    val dur = if (v.duration == "-") "" else (v.duration ?: "")
+
+                                    val prettyDate = when (dateStr) {
+                                        todayStr -> "Сегодня"
+                                        yesterdayStr -> "Вчера"
+                                        else -> try {
+                                            val d = sdf.parse(dateStr)
+                                            if (d != null) {
+                                                SimpleDateFormat("d MMMM", Locale("ru")).format(d)
+                                            } else dateStr
+                                        } catch (_: Exception) { dateStr }
+                                    }
+
+                                    allVisits.add(
+                                        SchoolVisitRecord(
+                                            date = prettyDate,
+                                            timeIn = inTime,
+                                            timeOut = outTime,
+                                            duration = dur,
+                                            isCurrentlyInSchool = isCurInSchool
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                if (allVisits.isNotEmpty()) {
+                    val updated = _attendance.value.copy(visits = allVisits)
+                    _attendance.value = updated
+                    sessionManager.cachedAttendance = updated
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 11. Аватарка профиля (GET /api/avatarmanagement/v1/{userUuid})
+        try {
+            if (activeGuid.isNotBlank()) {
+                val avatarResp = MeshNetworkClient.avatarApi.getAvatars(
+                    token = bearerToken,
+                    authToken = cleanToken,
+                    subsystem = "familymp",
+                    clientType = "diary-mobile",
+                    userUuid = activeGuid
+                )
+                if (avatarResp.isSuccessful && avatarResp.body() != null) {
+                    val avatars = avatarResp.body()!!
+                    val defaultAvatar = avatars.find { it.isDefault } ?: avatars.firstOrNull()
+                    if (defaultAvatar != null) {
+                        val updatedProfile = _studentProfile.value.copy(
+                            avatarUrl = defaultAvatar.url,
+                            avatarId = defaultAvatar.id
+                        )
+                        _studentProfile.value = updatedProfile
+                        sessionManager.cachedProfile = updatedProfile
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -1047,6 +1301,98 @@ class MeshRepository(private val sessionManager: SessionManager) {
             }
         } catch (e: Exception) {
             return@withContext Pair(false, "Ошибка: ${e.localizedMessage ?: "не удалось отправить"}")
+        }
+    }
+
+    suspend fun uploadAvatar(fileBytes: ByteArray, fileName: String): Boolean = withContext(Dispatchers.IO) {
+        val activeGuid = _studentProfile.value.contingentGuid
+        val token = sessionManager.authToken
+        if (token.isNullOrBlank() || activeGuid.isBlank()) {
+            // Демо режим: создаем локальный data URL или псевдо-ссылку
+            val updated = _studentProfile.value.copy(
+                avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+                avatarId = 777L
+            )
+            _studentProfile.value = updated
+            sessionManager.cachedProfile = updated
+            return@withContext true
+        }
+
+        val bearerToken = if (token.startsWith("Bearer ", ignoreCase = true)) token else "Bearer $token"
+        val cleanToken = token.removePrefix("Bearer ").removePrefix("bearer ").trim()
+
+        try {
+            val reqBody = fileBytes.toRequestBody("image/*".toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("file", fileName, reqBody)
+            val isDefaultBody = "true".toRequestBody("text/plain".toMediaTypeOrNull())
+
+            val resp = MeshNetworkClient.avatarApi.uploadAvatar(
+                token = bearerToken,
+                authToken = cleanToken,
+                subsystem = "familymp",
+                clientType = "diary-mobile",
+                userUuid = activeGuid,
+                file = part,
+                isDefault = isDefaultBody
+            )
+            if (resp.isSuccessful && resp.body() != null) {
+                val newAvatar = resp.body()!!
+                val updated = _studentProfile.value.copy(
+                    avatarUrl = newAvatar.url,
+                    avatarId = newAvatar.id
+                )
+                _studentProfile.value = updated
+                sessionManager.cachedProfile = updated
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun deleteAvatar(): Boolean = withContext(Dispatchers.IO) {
+        val activeGuid = _studentProfile.value.contingentGuid
+        val currentAvatarId = _studentProfile.value.avatarId
+        val token = sessionManager.authToken
+
+        if (token.isNullOrBlank() || activeGuid.isBlank() || currentAvatarId == 0L) {
+            // Демо режим
+            val updated = _studentProfile.value.copy(
+                avatarUrl = null,
+                avatarId = 0L
+            )
+            _studentProfile.value = updated
+            sessionManager.cachedProfile = updated
+            return@withContext true
+        }
+
+        val bearerToken = if (token.startsWith("Bearer ", ignoreCase = true)) token else "Bearer $token"
+        val cleanToken = token.removePrefix("Bearer ").removePrefix("bearer ").trim()
+
+        try {
+            val resp = MeshNetworkClient.avatarApi.deleteAvatar(
+                token = bearerToken,
+                authToken = cleanToken,
+                subsystem = "familymp",
+                clientType = "diary-mobile",
+                userUuid = activeGuid,
+                avatarId = currentAvatarId
+            )
+            if (resp.isSuccessful) {
+                val updated = _studentProfile.value.copy(
+                    avatarUrl = null,
+                    avatarId = 0L
+                )
+                _studentProfile.value = updated
+                sessionManager.cachedProfile = updated
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
         }
     }
 

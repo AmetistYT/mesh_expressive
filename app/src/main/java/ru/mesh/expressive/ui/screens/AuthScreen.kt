@@ -13,6 +13,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -65,6 +67,8 @@ fun AuthScreen(
     var isExtractingRoot by remember { mutableStateOf(false) }
     var rootDialogMessage by remember { mutableStateOf<String?>(null) }
     var detectedWebToken by remember { mutableStateOf<String?>(null) }
+    var showMosRuGuideDialog by remember { mutableStateOf(false) }
+    var showHowItWorksDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
@@ -110,7 +114,10 @@ fun AuthScreen(
                 when (targetState) {
                     AuthScreenState.WELCOME_LANDING -> {
                         WelcomeLandingView(
-                            onLoginMosRuClick = { screenState = AuthScreenState.WEB_MOS_RU },
+                            onLoginMosRuClick = {
+                                screenState = AuthScreenState.WEB_MOS_RU
+                                showMosRuGuideDialog = true
+                            },
                             onRootTokenClick = { screenState = AuthScreenState.ROOT_AND_MANUAL_TOKEN },
                             onContinueDemoClick = onAuthSuccess
                         )
@@ -427,6 +434,200 @@ fun AuthScreen(
                 }
             }
         )
+    }
+
+    if (showMosRuGuideDialog) {
+        AlertDialog(
+            onDismissRequest = { showMosRuGuideDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.VpnKey,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Вход через mos.ru",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "1. Войдите в свой аккаунт на странице mos.ru.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "2. Как только появится страница дневника или белый экран — нажмите кнопку «Подтвердить вход в дневник» внизу экрана.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VpnLock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Если не грузится — отключите VPN (нужно только для входа).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    TextButton(
+                        onClick = { showHowItWorksDialog = true },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Как это работает?",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showMosRuGuideDialog = false },
+                    shape = PillShape,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Понятно")
+                }
+            }
+        )
+    }
+
+    if (showHowItWorksDialog) {
+        AlertDialog(
+            onDismissRequest = { showHowItWorksDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Shield,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Как это работает?",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    HowItWorksInfoItem(
+                        number = "1",
+                        title = "Вход в свой аккаунт",
+                        description = "Вы вводите логин и пароль прямо на официальной странице mos.ru через государственную систему СУДИР. Пароли не передаются приложению."
+                    )
+                    HowItWorksInfoItem(
+                        number = "2",
+                        title = "Страница дневника или белый экран",
+                        description = "После ввода пароля и СМС mos.ru перенаправит вас на школьный портал. Страница может остаться белой или показать дневник — это значит, что сессия успешно создана. Просто нажмите внизу кнопку «Подтвердить вход в дневник»."
+                    )
+                    HowItWorksInfoItem(
+                        number = "3",
+                        title = "Почему мешает VPN?",
+                        description = "Серверы mos.ru блокируют зарубежные IP-адреса для защиты от атак. Если страница зависла или выдает ошибку, выключите VPN только на время авторизации. Сразу после входа VPN можно включить обратно."
+                    )
+                    HowItWorksInfoItem(
+                        number = "4",
+                        title = "0 трекеров и открытость",
+                        description = "Приложение сохраняет полученный ключ сессии только на вашем телефоне. Никакой аналитики Яндекса, рекламы или слежки."
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showHowItWorksDialog = false },
+                    shape = PillShape,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Понятно")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun HowItWorksInfoItem(
+    number: String,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.size(24.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = number,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

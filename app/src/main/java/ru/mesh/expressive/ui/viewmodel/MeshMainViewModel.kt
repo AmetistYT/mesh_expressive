@@ -20,6 +20,10 @@ enum class DashboardDay {
     TODAY, TOMORROW
 }
 
+enum class MarksViewMode {
+    BY_SUBJECT, BY_DATE
+}
+
 class MeshMainViewModel(
     private val repository: MeshRepository,
     private val sessionManager: SessionManager
@@ -78,6 +82,16 @@ class MeshMainViewModel(
 
     private val _showOnboardingGuide = MutableStateFlow(!sessionManager.isOnboardingCompleted)
     val showOnboardingGuide: StateFlow<Boolean> = _showOnboardingGuide.asStateFlow()
+
+    private val _marksViewMode = MutableStateFlow(
+        if (sessionManager.marksViewMode == "BY_DATE") MarksViewMode.BY_DATE else MarksViewMode.BY_SUBJECT
+    )
+    val marksViewMode: StateFlow<MarksViewMode> = _marksViewMode.asStateFlow()
+
+    fun setMarksViewMode(mode: MarksViewMode) {
+        _marksViewMode.value = mode
+        sessionManager.marksViewMode = mode.name
+    }
 
     init {
         viewModelScope.launch {
@@ -242,6 +256,20 @@ class MeshMainViewModel(
             val result = repository.autoCompleteAllQuests()
             _isAutoCompleting.value = false
             onCompleted(result)
+        }
+    }
+
+    fun uploadAvatar(bytes: ByteArray, fileName: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val success = repository.uploadAvatar(bytes, fileName)
+            onResult(success)
+        }
+    }
+
+    fun deleteAvatar(onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val success = repository.deleteAvatar()
+            onResult(success)
         }
     }
 

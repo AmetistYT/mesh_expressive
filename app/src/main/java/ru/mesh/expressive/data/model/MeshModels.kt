@@ -18,7 +18,8 @@ data class StudentProfile(
     val className: String = "",
     val schoolName: String = "",
     val gpa: Double = 0.0,
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
+    val avatarId: Long = 0L
 )
 
 /**
@@ -488,7 +489,16 @@ data class AttendanceSummary(
     val excusedAbsences: Int = 0,
     val unexcusedAbsences: Int = 0,
     val percentage: Double = 100.0,
-    val emiasCertificates: List<EmiasRecord> = emptyList()
+    val emiasCertificates: List<EmiasRecord> = emptyList(),
+    val visits: List<SchoolVisitRecord> = emptyList()
+)
+
+data class SchoolVisitRecord(
+    val date: String = "",
+    val timeIn: String = "",
+    val timeOut: String = "",
+    val duration: String = "",
+    val isCurrentlyInSchool: Boolean = false
 )
 
 data class EmiasRecord(

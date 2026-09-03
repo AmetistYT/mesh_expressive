@@ -46,64 +46,75 @@ fun M3WavyProgressIndicator(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary,
     trackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-    strokeWidth: Dp = 6.dp,
-    amplitude: Float = 6f,
-    wavelength: Float = 48f
+    strokeWidth: Dp = 3.5.dp,
+    amplitude: Float = 2.8f,
+    wavelength: Float = 36f,
+    isAnimated: Boolean = true
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "WavyProgress")
-    val phase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
+    val phase by if (isAnimated) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 2f * PI.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2800, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "phase"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
 
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 250f),
         label = "animatedProgress"
     )
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(20.dp)
+            .height(18.dp)
     ) {
         val width = size.width
         val height = size.height
         val midY = height / 2f
         val strokePx = strokeWidth.toPx()
+        val ampPx = (amplitude.dp.toPx()).coerceAtMost(midY - strokePx / 2f)
+        val waveLenPx = wavelength.dp.toPx()
 
-        // Draw track wavy line
+        fun waveY(x: Float): Float {
+            return midY + ampPx * sin(2f * PI.toFloat() * (x / waveLenPx) - phase)
+        }
+
+        // Draw track wavy line with dense 1px steps for a perfectly smooth curve
         val trackPath = Path().apply {
-            moveTo(0f, midY)
-            var x = 0f
+            moveTo(0f, waveY(0f))
+            var x = 1f
             while (x <= width) {
-                val y = midY + amplitude * sin((x / wavelength) * 2 * PI.toFloat())
-                lineTo(x, y)
-                x += 4f
+                lineTo(x, waveY(x))
+                x += 1f
             }
+            lineTo(width, waveY(width))
         }
         drawPath(
             path = trackPath,
-            color = trackColor,
+            color = trackColor.copy(alpha = 0.45f),
             style = Stroke(width = strokePx * 0.75f, cap = StrokeCap.Round)
         )
 
         // Draw active wavy snake indicator
-        val activeWidth = width * animatedProgress
-        if (activeWidth > 2f) {
+        val activeWidth = (width * animatedProgress).coerceAtLeast(0f)
+        if (activeWidth > 1f) {
             val activePath = Path().apply {
-                moveTo(0f, midY)
-                var x = 0f
+                moveTo(0f, waveY(0f))
+                var x = 1f
                 while (x <= activeWidth) {
-                    val y = midY + amplitude * sin((x / wavelength) * 2 * PI.toFloat() + phase)
-                    lineTo(x, y)
-                    x += 3f
+                    lineTo(x, waveY(x))
+                    x += 1f
                 }
+                lineTo(activeWidth, waveY(activeWidth))
             }
             drawPath(
                 path = activePath,
@@ -129,18 +140,18 @@ fun M3CircularWavyLoader(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = LinearEasing),
+            animation = tween(durationMillis = 1800, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "rotation"
     )
 
     val morph by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.15f,
+        initialValue = 0f,
+        targetValue = 2f * PI.toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
         ),
         label = "morph"
     )
@@ -152,16 +163,24 @@ fun M3CircularWavyLoader(
     ) {
         val cx = this.size.width / 2f
         val cy = this.size.height / 2f
-        val r = (minOf(cx, cy) - 6.dp.toPx()) * morph
+        val strokePx = 4.dp.toPx()
+        val baseR = (minOf(cx, cy) - strokePx * 1.5f).coerceAtLeast(4f)
+        val numLobes = 7
+        val lobeDepth = 3.dp.toPx()
+
+        // Background circular track
+        drawCircle(
+            color = trackColor.copy(alpha = 0.35f),
+            radius = baseR,
+            center = androidx.compose.ui.geometry.Offset(cx, cy),
+            style = Stroke(width = strokePx * 0.5f, cap = StrokeCap.Round)
+        )
 
         // Scalloped wavy path around circle
         val path = Path()
-        val numLobes = 7
-        val lobeDepth = 4.dp.toPx()
-
-        for (i in 0..360 step 5) {
+        for (i in 0..360 step 4) {
             val rad = i * PI.toFloat() / 180f
-            val currentR = r + lobeDepth * sin(numLobes * rad)
+            val currentR = baseR + lobeDepth * sin(numLobes * rad + morph)
             val px = cx + currentR * cos(rad)
             val py = cy + currentR * sin(rad)
 
@@ -172,7 +191,7 @@ fun M3CircularWavyLoader(
         drawPath(
             path = path,
             color = color,
-            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+            style = Stroke(width = strokePx, cap = StrokeCap.Round)
         )
     }
 }

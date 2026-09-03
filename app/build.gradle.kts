@@ -11,8 +11,8 @@ android {
         applicationId = "ru.mesh.expressive"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.4.0"
+        versionCode = 8
+        versionName = "1.5.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -68,6 +68,9 @@ dependencies {
 
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
+
+    // Image loading
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Networking (Retrofit & OkHttp) - Zero telemetry
     implementation("com.squareup.retrofit2:retrofit:2.9.0")

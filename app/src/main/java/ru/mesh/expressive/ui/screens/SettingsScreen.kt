@@ -1,11 +1,17 @@
 package ru.mesh.expressive.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Login
@@ -53,6 +59,26 @@ fun SettingsScreen(
     var showTokenDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var showClassInfoDialog by remember { mutableStateOf(false) }
+    var showAvatarDialog by remember { mutableStateOf(false) }
+    var isAvatarLoading by remember { mutableStateOf(false) }
+
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes != null && bytes.isNotEmpty()) {
+                    isAvatarLoading = true
+                    viewModel.uploadAvatar(bytes, "avatar.jpg") {
+                        isAvatarLoading = false
+                    }
+                }
+            } catch (_: Exception) {
+                isAvatarLoading = false
+            }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -83,17 +109,55 @@ fun SettingsScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(54.dp)
-                                    .clip(M3Cookie7Shape(7))
-                                    .background(MaterialTheme.colorScheme.primary),
-                                contentAlignment = Alignment.Center
+                                    .size(64.dp)
+                                    .clickable { showAvatarDialog = true }
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.AccountCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(32.dp)
-                                )
+                                // Clipped Cookie Avatar
+                                Box(
+                                    modifier = Modifier
+                                        .size(58.dp)
+                                        .align(Alignment.Center)
+                                        .clip(M3Cookie7Shape(7))
+                                        .background(MaterialTheme.colorScheme.primary),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!profile.avatarUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = profile.avatarUrl,
+                                            contentDescription = "Аватар",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        val initials = "${profile.firstName.firstOrNull() ?: 'М'}${profile.lastName.firstOrNull() ?: 'Э'}"
+                                        Text(
+                                            text = initials,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                // Unclipped camera badge on top
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shadowElevation = 3.dp,
+                                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surfaceContainer),
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .align(Alignment.BottomEnd)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.PhotoCamera,
+                                            contentDescription = "Сменить аватар",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                }
                             }
                             Spacer(modifier = Modifier.width(14.dp))
                             Column {
@@ -135,23 +199,32 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (viewModel.isLoggedIn) {
-                        Spacer(modifier = Modifier.height(14.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
-                        Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = { showAvatarDialog = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
+                            Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Сменить аватар", style = MaterialTheme.typography.labelSmall)
+                        }
+
+                        if (viewModel.isLoggedIn) {
                             TextButton(
                                 onClick = { showClassInfoDialog = true },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Данные класса", style = MaterialTheme.typography.labelSmall)
+                                Text("Класс", style = MaterialTheme.typography.labelSmall)
                             }
 
                             TextButton(
@@ -678,6 +751,139 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showResetConfirmDialog = false }) {
                     Text("Отмена")
+                }
+            }
+        )
+    }
+
+    if (showAvatarDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isAvatarLoading) showAvatarDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Face,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Аватар профиля",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(110.dp)
+                            .clip(M3Cookie7Shape(7))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!profile.avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = profile.avatarUrl,
+                                contentDescription = "Аватар",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            val initials = "${profile.firstName.firstOrNull() ?: 'М'}${profile.lastName.firstOrNull() ?: 'Э'}"
+                            Text(
+                                text = initials,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        if (isAvatarLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(36.dp),
+                                    strokeWidth = 3.dp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = if (profile.firstName.isNotBlank()) "${profile.firstName} ${profile.lastName}" else "Ученик МЭШ",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (profile.className.isNotBlank()) "${profile.className} класс" else "Московская электронная школа",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = { photoPicker.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = PillShape,
+                        enabled = !isAvatarLoading
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (profile.avatarUrl.isNullOrBlank()) "Загрузить фото" else "Сменить аватарку")
+                    }
+
+                    if (!profile.avatarUrl.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                isAvatarLoading = true
+                                viewModel.deleteAvatar {
+                                    isAvatarLoading = false
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = PillShape,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                            enabled = !isAvatarLoading
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Удалить аватарку")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showAvatarDialog = false },
+                    enabled = !isAvatarLoading
+                ) {
+                    Text("Закрыть")
                 }
             }
         )

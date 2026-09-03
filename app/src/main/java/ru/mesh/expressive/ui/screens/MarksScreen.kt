@@ -11,12 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Calculate
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.Subject
+import androidx.compose.material.icons.automirrored.filled.Subject
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,24 +24,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.mesh.expressive.data.model.MarkItem
 import ru.mesh.expressive.data.model.SubjectSummary
+import ru.mesh.expressive.ui.components.ExpressiveChipSegmentedToggle
 import ru.mesh.expressive.ui.components.ExpressivePullToRefreshBox
 import ru.mesh.expressive.ui.components.M3WavyProgressIndicator
 import ru.mesh.expressive.ui.components.expressiveBounceClick
 import ru.mesh.expressive.ui.theme.*
+import ru.mesh.expressive.ui.viewmodel.MarksViewMode
 import ru.mesh.expressive.ui.viewmodel.MeshMainViewModel
 import kotlin.math.ceil
-
-enum class MarksViewMode {
-    BY_SUBJECT, BY_DATE
-}
 
 @Composable
 fun MarksScreen(viewModel: MeshMainViewModel) {
     val subjectSummaries by viewModel.subjectSummaries.collectAsState()
     val profile by viewModel.studentProfile.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-
-    var viewMode by remember { mutableStateOf(MarksViewMode.BY_SUBJECT) }
+    val viewMode by viewModel.marksViewMode.collectAsState()
     var showCalculatorDialog by remember { mutableStateOf(false) }
     var selectedSubjectForCalc by remember { mutableStateOf<SubjectSummary?>(null) }
 
@@ -115,7 +108,7 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                             }
 
                             Text(
-                                text = "1-й триместр 2026/2027 учебного года",
+                                text = "1-я четверть 2026/2027 учебного года",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                             )
@@ -123,23 +116,36 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                     }
                 }
 
-                // 2. Mode Header
+                // 2. Mode Header with Segmented Selector (Предметы / Даты)
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = if (viewMode == MarksViewMode.BY_SUBJECT) "Оценки по предметам" else "Оценки по датам",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Text(
+                                text = "Оценки",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (viewMode == MarksViewMode.BY_SUBJECT) "${subjectSummaries.size} предметов" else "${allMarksGroupedByDate.sumOf { it.second.size }} оценок",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
 
-                        Text(
-                            text = if (viewMode == MarksViewMode.BY_SUBJECT) "${subjectSummaries.size} предметов" else "${allMarksGroupedByDate.sumOf { it.second.size }} оценок",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // Expressive Chip Segmented Selector (Чипсины)
+                        ExpressiveChipSegmentedToggle(
+                            items = listOf(MarksViewMode.BY_SUBJECT, MarksViewMode.BY_DATE),
+                            selectedItem = viewMode,
+                            onItemSelected = { viewModel.setMarksViewMode(it) },
+                            label = { when (it) { MarksViewMode.BY_SUBJECT -> "Предметы"; MarksViewMode.BY_DATE -> "Даты" } },
+                            icon = { when (it) { MarksViewMode.BY_SUBJECT -> Icons.AutoMirrored.Filled.Subject; MarksViewMode.BY_DATE -> Icons.Default.CalendarMonth } }
                         )
                     }
                 }
@@ -170,58 +176,83 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                     }
                 }
             }
-
-            // Floating Bottom Toggle: По предметам / По числу
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp),
-                shape = PillShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                shadowElevation = 8.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    MarksModeSegmentButton(
-                        title = "По предметам",
-                        icon = Icons.Default.Subject,
-                        isSelected = viewMode == MarksViewMode.BY_SUBJECT,
-                        onClick = { viewMode = MarksViewMode.BY_SUBJECT }
-                    )
-                    MarksModeSegmentButton(
-                        title = "По числу",
-                        icon = Icons.Default.CalendarMonth,
-                        isSelected = viewMode == MarksViewMode.BY_DATE,
-                        onClick = { viewMode = MarksViewMode.BY_DATE }
-                    )
-                }
-            }
         }
     }
 
     if (showCalculatorDialog && selectedSubjectForCalc != null) {
         val subject = selectedSubjectForCalc!!
-        var targetGpa by remember { mutableFloatStateOf(4.5f) }
-        val neededFives = calculateNeededFives(subject.averageMark, targetGpa, subject.marks.size)
+        var targetGpa by remember { mutableFloatStateOf(4.60f) }
+        val neededFives = calculateNeededFives(subject, targetGpa)
 
         AlertDialog(
             onDismissRequest = { showCalculatorDialog = false },
             icon = { Icon(Icons.Default.Calculate, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) },
-            title = { Text("Калькулятор баллов", fontWeight = FontWeight.Bold) },
+            title = { Text("Калькулятор оценок", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(text = "Предмет: ${subject.subject}", fontWeight = FontWeight.SemiBold)
-                    Text(text = "Текущий средний балл: ${String.format("%.2f", subject.averageMark)}")
+                    Text(text = "Текущий средний балл: ${if (subject.averageMark > 0.0) String.format(java.util.Locale.US, "%.2f", subject.averageMark) else "—"}")
 
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "Целевой балл: ${String.format("%.1f", targetGpa)}", style = MaterialTheme.typography.bodyMedium)
+                    // Target presets
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = PillShape,
+                            color = if (targetGpa == 3.60f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { targetGpa = 3.60f }
+                        ) {
+                            Text(
+                                text = "На «4» (3.60)",
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (targetGpa == 3.60f) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Surface(
+                            shape = PillShape,
+                            color = if (targetGpa == 4.60f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { targetGpa = 4.60f }
+                        ) {
+                            Text(
+                                text = "На «5» (4.60)",
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (targetGpa == 4.60f) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Целевой балл:", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = String.format(java.util.Locale.US, "%.2f", targetGpa),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     Slider(
                         value = targetGpa,
-                        onValueChange = { targetGpa = it },
-                        valueRange = 3.5f..5.0f,
-                        steps = 2
+                        onValueChange = { targetGpa = (it * 20).toInt() / 20f },
+                        valueRange = 3.50f..4.80f
                     )
 
                     Card(
@@ -230,9 +261,19 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
-                                text = if (neededFives == 0) "Цель уже достигнута!" else "Нужно получить пятерок (с весом 1.0): $neededFives шт.",
+                                text = if (subject.averageMark >= targetGpa)
+                                    "Цель уже достигнута!"
+                                else
+                                    "Нужно получить пятёрок (с весом 1.0): $neededFives шт.",
                                 fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "В МЭШ средний балл от 4.60 округляется в итоговую «5» за четверть",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
                         }
                     }
@@ -250,45 +291,7 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
     }
 }
 
-@Composable
-private fun MarksModeSegmentButton(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val bgColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
-        label = "modeBtnBg"
-    )
-    val contentColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        label = "modeBtnContent"
-    )
 
-    Surface(
-        shape = PillShape,
-        color = bgColor,
-        modifier = Modifier
-            .clip(PillShape)
-            .expressiveBounceClick(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(imageVector = icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = contentColor
-            )
-        }
-    }
-}
 
 @Composable
 fun DateMarksGroupCard(
@@ -454,7 +457,7 @@ fun SubjectMarksCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${subjectSummary.marks.size} оценок в триместре",
+                        text = "${subjectSummary.marks.size} оценок в четверти",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -564,10 +567,21 @@ fun SubjectMarksCard(
     }
 }
 
-private fun calculateNeededFives(currentGpa: Double, targetGpa: Float, marksCount: Int): Int {
-    if (currentGpa >= targetGpa) return 0
-    val count = if (marksCount > 0) marksCount else 1
-    val currentSum = currentGpa * count
-    val needed = ceil((targetGpa * count - currentSum) / (5.0 - targetGpa)).toInt()
-    return if (needed > 0) needed else 0
+private fun calculateNeededFives(subject: SubjectSummary, targetGpa: Float): Int {
+    if (subject.averageMark >= targetGpa) return 0
+
+    val (weightedSum, totalWeight) = if (subject.marks.isNotEmpty()) {
+        val sum = subject.marks.sumOf { it.value * it.weight }
+        val weight = subject.marks.sumOf { it.weight }
+        sum to weight
+    } else {
+        (subject.averageMark * 1.0) to 1.0
+    }
+
+    val effectiveTarget = targetGpa.coerceAtMost(4.85f).toDouble()
+    val denominator = 5.0 - effectiveTarget
+    if (denominator <= 0.001) return 0
+
+    val needed = ceil((effectiveTarget * totalWeight - weightedSum) / denominator).toInt()
+    return needed.coerceIn(0, 99)
 }
