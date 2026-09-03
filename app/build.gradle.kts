@@ -11,8 +11,8 @@ android {
         applicationId = "ru.mesh.expressive"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.5.8"
+        versionCode = 9
+        versionName = "1.5.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -39,6 +39,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.11"

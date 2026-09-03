@@ -623,7 +623,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Версия 1.4.0 • Material Design 3 Expressive • Open Source",
+                        text = "Версия ${ru.mesh.expressive.BuildConfig.VERSION_NAME} • Material Design 3 Expressive • Open Source",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

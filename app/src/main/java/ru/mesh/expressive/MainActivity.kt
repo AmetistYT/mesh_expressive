@@ -665,24 +665,29 @@ fun ExpressiveFloatingDock(
     val currentTabState by rememberUpdatedState(currentTab)
     val onTabSelectedState by rememberUpdatedState(onTabSelected)
 
+    val coroutineScope = rememberCoroutineScope()
+    val dropletWidthPx = density.run { 68.dp.toPx() }
+    val dropletHeightPx = density.run { 42.dp.toPx() }
+
+    val animDropletLeft = remember { Animatable(0f) }
+    val animDropletWidth = remember { Animatable(dropletWidthPx) }
+    val animDropletScale = remember { Animatable(1.0f) }
+    val animDropletElevation = remember { Animatable(0f) }
+
     var isDragging by remember { mutableStateOf(false) }
+    var isSettling by remember { mutableStateOf(false) }
+    val isDropletActive = isDragging || isSettling
+
     var fingerX by remember { mutableFloatStateOf(0f) }
-    var dropletLeftPx by remember { mutableFloatStateOf(0f) }
     var lastDeltaX by remember { mutableFloatStateOf(0f) }
     var dockWidth by remember { mutableFloatStateOf(0f) }
 
     val activeRect = tabBounds[currentTab]
-    val dropletWidthPx = density.run { 68.dp.toPx() }
-    val dropletHeightPx = density.run { 42.dp.toPx() }
 
-    val cardScale by animateFloatAsState(
-        targetValue = if (isDragging) 1.12f else 0.9f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
-        label = "dockCardScale"
-    )
-
-    // Liquid squish & stretch physics
-    val stretchX = 1f + (lastDeltaX.coerceIn(-20f, 20f) / 90f).let { kotlin.math.abs(it) }
+    // Liquid squish & stretch physics (active only during active drag)
+    val stretchX = if (isDragging) {
+        1f + (lastDeltaX.coerceIn(-20f, 20f) / 90f).let { kotlin.math.abs(it) }
+    } else 1.0f
     val stretchY = 1f / kotlin.math.sqrt(stretchX)
 
     Box(
@@ -723,7 +728,6 @@ fun ExpressiveFloatingDock(
 
                                 val touchStartX = down.position.x
                                 fingerX = touchStartX
-                                dropletLeftPx = (touchStartX - dropletWidthPx / 2f).coerceIn(4f, (dockWidth - dropletWidthPx - 4f).coerceAtLeast(4f))
                                 lastDeltaX = 0f
 
                                 var dragActive = false
@@ -743,8 +747,15 @@ fun ExpressiveFloatingDock(
                                     if (!dragActive && (uptime > 150L || kotlin.math.abs(dx.toDouble()) > 14.0)) {
                                         dragActive = true
                                         isDragging = true
+                                        isSettling = false
                                         fingerX = change.position.x
-                                        dropletLeftPx = (fingerX - dropletWidthPx / 2f).coerceIn(4f, (dockWidth - dropletWidthPx - 4f).coerceAtLeast(4f))
+                                        val curDropX = (fingerX - dropletWidthPx / 2f).coerceIn(4f, (dockWidth - dropletWidthPx - 4f).coerceAtLeast(4f))
+                                        coroutineScope.launch {
+                                            animDropletLeft.snapTo(curDropX)
+                                            animDropletWidth.snapTo(dropletWidthPx)
+                                            animDropletScale.snapTo(1.12f)
+                                            animDropletElevation.snapTo(density.run { 8.dp.toPx() })
+                                        }
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
 
@@ -752,7 +763,11 @@ fun ExpressiveFloatingDock(
                                         change.consume()
                                         lastDeltaX = change.position.x - fingerX
                                         fingerX = change.position.x
-                                        dropletLeftPx = (fingerX - dropletWidthPx / 2f).coerceIn(4f, (dockWidth - dropletWidthPx - 4f).coerceAtLeast(4f))
+                                        val curDropX = (fingerX - dropletWidthPx / 2f).coerceIn(4f, (dockWidth - dropletWidthPx - 4f).coerceAtLeast(4f))
+
+                                        coroutineScope.launch {
+                                            animDropletLeft.snapTo(curDropX)
+                                        }
 
                                         // Use static slot boundaries to prevent hysteresis vibration
                                         if (dockWidth > 0f) {
@@ -770,26 +785,63 @@ fun ExpressiveFloatingDock(
 
                                 if (dragActive) {
                                     isDragging = false
+                                    isSettling = true
                                     lastDeltaX = 0f
+
+                                    val finalTab = currentTabState
+                                    val finalRect = tabBounds[finalTab]
+                                    val targetLeft = finalRect?.left ?: animDropletLeft.value
+                                    val targetWidth = finalRect?.width ?: dropletWidthPx
+
+                                    coroutineScope.launch {
+                                        val j1 = launch {
+                                            animDropletLeft.animateTo(
+                                                targetValue = targetLeft,
+                                                animationSpec = spring(dampingRatio = 0.70f, stiffness = 380f)
+                                            )
+                                        }
+                                        val j2 = launch {
+                                            animDropletWidth.animateTo(
+                                                targetValue = targetWidth,
+                                                animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f)
+                                            )
+                                        }
+                                        val j3 = launch {
+                                            animDropletScale.animateTo(
+                                                targetValue = 1.0f,
+                                                animationSpec = spring(dampingRatio = 0.65f, stiffness = 420f)
+                                            )
+                                        }
+                                        val j4 = launch {
+                                            animDropletElevation.animateTo(
+                                                targetValue = 0f,
+                                                animationSpec = spring(dampingRatio = 0.80f, stiffness = 400f)
+                                            )
+                                        }
+                                        j1.join()
+                                        j2.join()
+                                        j3.join()
+                                        j4.join()
+                                        isSettling = false
+                                    }
                                 }
                             }
                         }
                     }
                     .padding(horizontal = 6.dp, vertical = 6.dp)
             ) {
-                // 1. Fluid Droplet Selection Card — ONLY RENDERED ON HOLD/DRAG!
-                if (isDragging) {
-                    val wDp = density.run { dropletWidthPx.toDp() }
+                // 1. Fluid Droplet Selection Card — RENDERED WHILE DRAGGING OR SETTLING!
+                if (isDropletActive) {
+                    val wDp = density.run { animDropletWidth.value.toDp() }
                     val hDp = density.run { dropletHeightPx.toDp() }
-                    val elevPx = density.run { 8.dp.toPx() }
                     Box(
                         modifier = Modifier
-                            .offset { IntOffset(dropletLeftPx.roundToInt(), (activeRect?.top ?: 0f).roundToInt()) }
+                            .offset { IntOffset(animDropletLeft.value.roundToInt(), (activeRect?.top ?: 0f).roundToInt()) }
                             .size(width = wDp, height = hDp)
                             .graphicsLayer {
-                                this.scaleX = cardScale * stretchX
-                                this.scaleY = cardScale * stretchY
-                                this.shadowElevation = elevPx
+                                this.scaleX = animDropletScale.value * stretchX
+                                this.scaleY = animDropletScale.value * stretchY
+                                this.shadowElevation = animDropletElevation.value
                                 this.shape = PillShape
                             }
                             .clip(PillShape)
@@ -805,9 +857,9 @@ fun ExpressiveFloatingDock(
                     tabs.forEach { (tab, icons, label) ->
                         val isSelected = currentTab == tab
 
-                        // Normal tap background: rendered when NOT dragging
+                        // Normal tap background: rendered when droplet is NOT active
                         val animBgColor by animateColorAsState(
-                            targetValue = if (isSelected && !isDragging) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            targetValue = if (isSelected && !isDropletActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                             animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f),
                             label = "dockItemBg"
                         )

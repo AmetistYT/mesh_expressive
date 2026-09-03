@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ru.mesh.expressive.data.model.HomeworkItem
 import ru.mesh.expressive.ui.components.ExpressiveEmptyState
@@ -185,15 +187,20 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Surface(
-                                    shape = PillShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier
+                                        .weight(1f, fill = false)
+                                        .padding(end = 8.dp)
                                 ) {
                                     Text(
                                         text = hw.subject,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
 
@@ -206,7 +213,9 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = if (hw.dueDate == "Завтра") ScoreOrange else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (hw.dueDate == "Завтра") ScoreOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        softWrap = false,
+                                        maxLines = 1
                                     )
                                 }
                             }
