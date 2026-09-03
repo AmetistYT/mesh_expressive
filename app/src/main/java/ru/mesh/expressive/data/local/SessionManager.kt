@@ -82,6 +82,22 @@ class SessionManager(context: Context) {
         get() = prefs.getString("marks_view_mode", "BY_SUBJECT") ?: "BY_SUBJECT"
         set(value) = prefs.edit().putString("marks_view_mode", value).apply()
 
+    var startTab: String
+        get() = prefs.getString("start_tab", "DASHBOARD") ?: "DASHBOARD"
+        set(value) = prefs.edit().putString("start_tab", value).apply()
+
+    var hapticFeedbackEnabled: Boolean
+        get() = prefs.getBoolean("haptic_feedback_enabled", true)
+        set(value) = prefs.edit().putBoolean("haptic_feedback_enabled", value).apply()
+
+    var hideCompletedHomework: Boolean
+        get() = prefs.getBoolean("hide_completed_homework", false)
+        set(value) = prefs.edit().putBoolean("hide_completed_homework", value).apply()
+
+    var themeMode: String
+        get() = prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM"
+        set(value) = prefs.edit().putString("theme_mode", value).apply()
+
     // ======================== Cache Storage ========================
 
     private fun saveJson(key: String, value: Any?) {
@@ -161,9 +177,21 @@ class SessionManager(context: Context) {
         get() = getJson("cached_rating_info")
         set(value) = saveJson("cached_rating_info", value)
 
+    var cachedAcademicClassRanks: List<AcademicClassRankItem>?
+        get() = getJson("cached_academic_ranks")
+        set(value) = saveJson("cached_academic_ranks", value)
+
     var cachedAttendance: AttendanceSummary?
         get() = getJson("cached_attendance")
         set(value) = saveJson("cached_attendance", value)
+
+    var cachedPeriodsSchedules: List<PeriodScheduleItemDTO>?
+        get() = getJson("cached_periods_schedules")
+        set(value) = saveJson("cached_periods_schedules", value)
+
+    var cachedPortfolioAchievements: List<PortfolioAchievementItem>?
+        get() = getJson("cached_portfolio_achievements")
+        set(value) = saveJson("cached_portfolio_achievements", value)
 
     fun logout() {
         prefs.edit().remove("auth_token").apply()

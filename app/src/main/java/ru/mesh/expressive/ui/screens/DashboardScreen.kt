@@ -377,7 +377,11 @@ fun DashboardScreen(
             }
         } else {
             items(currentSchedule) { lesson ->
-                LessonCard(lesson = lesson, isCompact = isCompactSchedule)
+                LessonCard(
+                    lesson = lesson,
+                    isCompact = isCompactSchedule,
+                    onClick = { viewModel.openLessonDetails(lesson) }
+                )
             }
         }
 
@@ -415,9 +419,16 @@ fun DashboardScreen(
             items(tomorrowHw) { hw ->
                 HomeworkCard(
                     homework = hw,
+                    onClick = { viewModel.openHomeworkDetails(hw) },
                     onToggle = { viewModel.toggleHomework(hw.id) }
                 )
             }
+        }
+
+        // Каникулы и учебные периоды внизу экрана
+        item {
+            Spacer(modifier = Modifier.height(6.dp))
+            ru.mesh.expressive.ui.components.VacationsCard(viewModel = viewModel)
         }
     }
 }
@@ -459,11 +470,14 @@ fun SegmentedPill(
 @Composable
 fun LessonCard(
     lesson: LessonScheduleItem,
-    isCompact: Boolean = false
+    isCompact: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
     if (isCompact) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(
                 containerColor = if (lesson.isOngoing)
@@ -553,7 +567,9 @@ fun LessonCard(
     } else {
         // Standard view: cabinet moved to time row, teacher removed completely
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
             shape = ExpressiveCardShape,
             colors = CardDefaults.cardColors(
                 containerColor = if (lesson.isOngoing)
@@ -677,12 +693,13 @@ fun LessonCard(
 @Composable
 fun HomeworkCard(
     homework: HomeworkItem,
+    onClick: () -> Unit = {},
     onToggle: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .expressiveBounceClick(onClick = onToggle),
+            .expressiveBounceClick(onClick = onClick),
         shape = ExpressiveCardShape,
         colors = CardDefaults.cardColors(
             containerColor = if (homework.isDone)

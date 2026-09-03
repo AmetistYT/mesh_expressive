@@ -11,8 +11,8 @@ android {
         applicationId = "ru.mesh.expressive"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "1.5.9"
+        versionCode = 10
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -72,6 +72,7 @@ dependencies {
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("io.coil-kt:coil-gif:2.6.0")
 
     // Networking (Retrofit & OkHttp) - Zero telemetry
     implementation("com.squareup.retrofit2:retrofit:2.9.0")

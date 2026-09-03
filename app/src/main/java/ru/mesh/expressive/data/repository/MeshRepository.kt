@@ -2,6 +2,9 @@ package ru.mesh.expressive.data.repository
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -177,9 +180,24 @@ object DemoMockDataProvider {
     )
 
     val rewards = listOf(
-        RewardItem(id = "r_1", title = "Неоновая тема профиля", description = "Уникальный визуальный стиль в дневнике", costStars = 100),
-        RewardItem(id = "r_2", title = "Значок Отличника", description = "Особая рамка вокруг аватара", costStars = 150),
-        RewardItem(id = "r_3", title = "Подарок другу", description = "Отправить 50 звезд однокласснику", costStars = 50)
+        RewardItem(id = "306", title = "Брдыщ", costStars = 150, remainingStock = 3352, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Brdish_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Brdish_160.png"),
+        RewardItem(id = "305", title = "Манул", costStars = 250, remainingStock = 3266, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Manul_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Manul_kid_1600.png"),
+        RewardItem(id = "304", title = "Черемша", costStars = 250, remainingStock = 4525, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Cheremsha_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Cheremsha_160.png"),
+        RewardItem(id = "303", title = "Гиацинт", costStars = 200, remainingStock = 2547, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Гиацинт.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Гиацинт_160.png"),
+        RewardItem(id = "302", title = "Робот на ДР", costStars = 200, remainingStock = 3354, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Robot_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Robot_kid_160.png"),
+        RewardItem(id = "301", title = "НЛО и Корова", costStars = 200, remainingStock = 2525, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/NLO_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/NLO_kid_160.png"),
+        RewardItem(id = "300", title = "Сова МЭШ", costStars = 200, remainingStock = 3990, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Owl_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Owl_kid_160.png"),
+        RewardItem(id = "298", title = "Гитара", costStars = 200, remainingStock = 3765, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Guitar_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Guitar_kid_160.png"),
+        RewardItem(id = "297", title = "Дракон", costStars = 200, remainingStock = 3906, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Dinosaur_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Dinosaur_kid_160.png"),
+        RewardItem(id = "296", title = "Гусь", costStars = 200, remainingStock = 1179, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Goose_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Goose_kid_160.png"),
+        RewardItem(id = "295", title = "Котик с флагом", costStars = 200, remainingStock = 3949, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Cat_flag_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Cat_flag_kid_160.png"),
+        RewardItem(id = "294", title = "Капибара в ванной", costStars = 200, remainingStock = 3105, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Capibara_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Capibara_kid_160.png"),
+        RewardItem(id = "293", title = "Кактус", costStars = 200, remainingStock = 4367, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Cactus_kid_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Cactus_kid_160.png"),
+        RewardItem(id = "281", title = "Баскетбол", costStars = 20, remainingStock = 179, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Basketball.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Basketball_160.png"),
+        RewardItem(id = "60", title = "Геймпад", costStars = 25, remainingStock = 131002, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Joystick_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Joystick_160.png"),
+        RewardItem(id = "59", title = "Футбол", costStars = 25, remainingStock = 127402, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Football_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Football_160.png"),
+        RewardItem(id = "56", title = "Холодная роза", costStars = 30, remainingStock = 19248, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/Frozen_Rose_160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Frozen_Rose_160.png"),
+        RewardItem(id = "46", title = "Букет", costStars = 25, remainingStock = 101291, animationUrl = "https://school.mos.ru/storage/gamification/rewards/animations/flower-160.webp", iconName = "https://school.mos.ru/storage/gamification/rewards/images/small/Floweer_160.png")
     )
 
     val works = listOf(
@@ -273,7 +291,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
     private val _classmates = MutableStateFlow<List<ClassmateItem>>(emptyList())
     val classmates: StateFlow<List<ClassmateItem>> = _classmates.asStateFlow()
 
-    private val _rewards = MutableStateFlow<List<RewardItem>>(emptyList())
+    private val _rewards = MutableStateFlow<List<RewardItem>>(DemoMockDataProvider.rewards)
     val rewards: StateFlow<List<RewardItem>> = _rewards.asStateFlow()
 
     private val _profileRewards = MutableStateFlow<List<ProfileRewardItem>>(emptyList())
@@ -285,11 +303,29 @@ class MeshRepository(private val sessionManager: SessionManager) {
     private val _ratingInfo = MutableStateFlow(RatingInfo())
     val ratingInfo: StateFlow<RatingInfo> = _ratingInfo.asStateFlow()
 
+    private val _academicClassRanks = MutableStateFlow<List<AcademicClassRankItem>>(emptyList())
+    val academicClassRanks: StateFlow<List<AcademicClassRankItem>> = _academicClassRanks.asStateFlow()
+
     private val _mealsBalance = MutableStateFlow(MealsBalance())
     val mealsBalance: StateFlow<MealsBalance> = _mealsBalance.asStateFlow()
 
     private val _attendance = MutableStateFlow(AttendanceSummary())
     val attendance: StateFlow<AttendanceSummary> = _attendance.asStateFlow()
+
+    private val _periodsSchedules = MutableStateFlow<List<PeriodScheduleItemDTO>>(emptyList())
+    val periodsSchedules: StateFlow<List<PeriodScheduleItemDTO>> = _periodsSchedules.asStateFlow()
+
+    private val _vacationPeriods = MutableStateFlow<List<VacationPeriodInfo>>(emptyList())
+    val vacationPeriods: StateFlow<List<VacationPeriodInfo>> = _vacationPeriods.asStateFlow()
+
+    private val _upcomingVacation = MutableStateFlow<VacationPeriodInfo?>(null)
+    val upcomingVacation: StateFlow<VacationPeriodInfo?> = _upcomingVacation.asStateFlow()
+
+    private val _portfolioAchievements = MutableStateFlow<List<PortfolioAchievementItem>>(emptyList())
+    val portfolioAchievements: StateFlow<List<PortfolioAchievementItem>> = _portfolioAchievements.asStateFlow()
+
+    private val _isOffline = MutableStateFlow(false)
+    val isOffline: StateFlow<Boolean> = _isOffline.asStateFlow()
 
     init {
         if (sessionManager.isLoggedIn) {
@@ -317,7 +353,15 @@ class MeshRepository(private val sessionManager: SessionManager) {
         sessionManager.cachedProfileRewards?.let { _profileRewards.value = it }
         sessionManager.cachedMealsBalance?.let { _mealsBalance.value = it }
         sessionManager.cachedRatingInfo?.let { _ratingInfo.value = it }
+        sessionManager.cachedAcademicClassRanks?.let { _academicClassRanks.value = it }
         sessionManager.cachedAttendance?.let { _attendance.value = it }
+        sessionManager.cachedPeriodsSchedules?.let {
+            _periodsSchedules.value = it
+            val vacs = calculateVacationPeriods(it)
+            _vacationPeriods.value = vacs
+            _upcomingVacation.value = vacs.find { v -> v.isCurrent || v.isUpcoming }
+        }
+        sessionManager.cachedPortfolioAchievements?.let { _portfolioAchievements.value = it }
     }
 
     suspend fun saveAuthToken(token: String) {
@@ -538,12 +582,24 @@ class MeshRepository(private val sessionManager: SessionManager) {
                         val formattedDueDate = formatApiDateToReadable(dueDate, tomorrowStr)
                         HomeworkItem(
                             id = item.homeworkEntryStudentId?.toString() ?: "",
+                            homeworkEntryStudentId = item.homeworkEntryStudentId,
+                            lessonId = item.lessonId,
                             subject = item.subjectName ?: "Предмет",
+                            subjectId = item.subjectId ?: 0L,
                             description = item.description ?: "Задание",
                             date = dateAssigned,
                             dueDate = formattedDueDate,
                             isDone = item.isDone == true,
-                            hasDigitalTest = false
+                            hasDigitalTest = false,
+                            createdAt = item.lessonDateTime ?: dateAssigned,
+                            attachments = item.attachments.orEmpty().map { a ->
+                                HomeworkAttachmentItem(
+                                    id = a.id,
+                                    fileId = a.fileId,
+                                    name = a.name ?: a.fileName ?: "Файл",
+                                    url = a.url ?: a.link ?: ""
+                                )
+                            }
                         )
                     }
                 } else emptyList()
@@ -556,9 +612,93 @@ class MeshRepository(private val sessionManager: SessionManager) {
             }
         } catch (_: Exception) {}
 
+        // 3.1. Каникулы и учебные периоды (Mobile API)
+        try {
+            if (dynamicStudentId > 0) {
+                val periodsResp = MeshNetworkClient.familyMobileApi.getPeriodsSchedules(
+                    token = bearerToken,
+                    profileId = dynamicProfileId,
+                    studentId = dynamicStudentId,
+                    from = "2026-09-01",
+                    to = "2027-05-31"
+                )
+                if (periodsResp.isSuccessful && periodsResp.body() != null) {
+                    val periods = periodsResp.body()!!
+                    _periodsSchedules.value = periods
+                    sessionManager.cachedPeriodsSchedules = periods
+                    val vacs = calculateVacationPeriods(periods)
+                    _vacationPeriods.value = vacs
+                    _upcomingVacation.value = vacs.find { v -> v.isCurrent || v.isUpcoming }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 3.2. Портфолио и достижения (Portfolio Gateway API)
+        try {
+            val activeGuid = _studentProfile.value.contingentGuid.ifBlank { "3473f068-8ec0-47a1-920a-a18e75d6c389" }
+            val rewardsResp = MeshNetworkClient.portfolioApi.getRewardsList(
+                token = bearerToken,
+                profileId = dynamicProfileId,
+                personGuid = activeGuid,
+                size = 50
+            )
+            val eventsResp = MeshNetworkClient.portfolioApi.getEventsList(
+                token = bearerToken,
+                profileId = dynamicProfileId,
+                personGuid = activeGuid,
+                size = 50
+            )
+
+            val achievements = mutableListOf<PortfolioAchievementItem>()
+            rewardsResp.body()?.data.orEmpty().forEach { r ->
+                achievements.add(
+                    PortfolioAchievementItem(
+                        id = r.id,
+                        title = r.name.ifBlank { "Награда" },
+                        category = r.category?.value ?: "Достижение",
+                        level = r.levelReward?.value ?: "Школьный",
+                        type = r.rewardType?.value ?: "Награда",
+                        date = r.date.orEmpty(),
+                        organization = ""
+                    )
+                )
+            }
+            eventsResp.body()?.data.orEmpty().forEach { ev ->
+                achievements.add(
+                    PortfolioAchievementItem(
+                        id = ev.id,
+                        title = ev.name.ifBlank { "Мероприятие" },
+                        category = ev.category?.value ?: "Мероприятие",
+                        level = ev.levelEvent?.value ?: "Школьный",
+                        type = "Мероприятие",
+                        date = ev.startDate.orEmpty(),
+                        organization = ev.organizators.orEmpty()
+                    )
+                )
+            }
+            if (achievements.isNotEmpty()) {
+                val sorted = achievements.sortedByDescending { it.date }
+                _portfolioAchievements.value = sorted
+                sessionManager.cachedPortfolioAchievements = sorted
+            }
+        } catch (_: Exception) {}
+
         // 4. Оценки и сводки по предметам (Mobile API)
         try {
             if (dynamicStudentId > 0) {
+                // Fetch detailed marks to get accurate created_at with seconds
+                val rawMarksMap = mutableMapOf<String, MarkByDateItemDTO>()
+                try {
+                    val rawMarksResp = MeshNetworkClient.familyMobileApi.getMarks(
+                        bearerToken, dynamicProfileId, "familymp", "diary-mobile", dynamicStudentId, "2026-08-01", todayStr
+                    )
+                    if (rawMarksResp.isSuccessful && rawMarksResp.body()?.payload != null) {
+                        rawMarksResp.body()!!.payload.orEmpty().forEach { rm ->
+                            rm.id?.let { rawMarksMap[it.toString()] = rm }
+                        }
+                    }
+                } catch (_: Exception) {}
+
                 val marksResp = MeshNetworkClient.familyMobileApi.getSubjectMarksShort(
                     bearerToken, dynamicProfileId, "familymp", "diary-mobile", dynamicStudentId
                 )
@@ -567,18 +707,25 @@ class MeshRepository(private val sessionManager: SessionManager) {
                     val summaries = subjectsList.map { subj ->
                         val avg = subj.average?.replace(",", ".")?.toDoubleOrNull() ?: 0.0
                         val marksList = subj.marks.orEmpty().map { m ->
+                            val mid = m.id?.toString() ?: ""
+                            val detailed = rawMarksMap[mid]
                             MarkItem(
-                                id = m.id?.toString() ?: "",
+                                id = mid,
                                 subject = subj.subjectName ?: "",
+                                subjectId = detailed?.subjectId ?: subj.subjectId ?: 0L,
                                 value = m.value?.toIntOrNull() ?: 5,
-                                weight = m.weight ?: 1.0,
-                                date = m.date ?: "",
-                                topic = m.controlFormName ?: m.comment ?: "",
-                                isExam = m.isExam == true
+                                weight = detailed?.weight ?: m.weight ?: 1.0,
+                                date = detailed?.date ?: m.date ?: "",
+                                topic = detailed?.controlFormName ?: m.controlFormName ?: detailed?.comment ?: m.comment ?: "",
+                                isExam = detailed?.isExam ?: (m.isExam == true),
+                                controlFormName = detailed?.controlFormName ?: m.controlFormName,
+                                comment = detailed?.comment ?: m.comment,
+                                createdAt = detailed?.createdAt
                             )
                         }
                         SubjectSummary(
                             subject = subj.subjectName ?: "Предмет",
+                            subjectId = subj.subjectId ?: 0L,
                             averageMark = avg,
                             marks = marksList,
                             targetMark = 4.60
@@ -596,39 +743,38 @@ class MeshRepository(private val sessionManager: SessionManager) {
                             sessionManager.cachedProfile = updatedProfile
                         }
                     }
-                } else {
-                    val rawMarksResp = MeshNetworkClient.familyMobileApi.getMarks(
-                        bearerToken, dynamicProfileId, "familymp", "diary-mobile", dynamicStudentId, "2026-08-01", todayStr
-                    )
-                    if (rawMarksResp.isSuccessful && !rawMarksResp.body().isNullOrEmpty()) {
-                        val rawMarks = rawMarksResp.body()!!
-                        val grouped = rawMarks.groupBy { it.subjectName ?: "Предмет" }
-                        val summaries = grouped.map { (subjName, markItems) ->
-                            val marksList = markItems.map { m ->
-                                MarkItem(
-                                    id = m.id?.toString() ?: "",
-                                    subject = subjName,
-                                    value = m.value?.toIntOrNull() ?: 5,
-                                    weight = m.weight ?: 1.0,
-                                    date = m.date ?: "",
-                                    topic = m.controlFormName ?: m.comment ?: "",
-                                    isExam = m.isExam == true
-                                )
-                            }
-                            val totalWeight = marksList.sumOf { it.weight }
-                            val weightedSum = marksList.sumOf { it.value * it.weight }
-                            val avg = if (totalWeight > 0.0) weightedSum / totalWeight else 0.0
-                            SubjectSummary(
+                } else if (rawMarksMap.isNotEmpty()) {
+                    val rawMarks = rawMarksMap.values.toList()
+                    val grouped = rawMarks.groupBy { it.subjectName ?: "Предмет" }
+                    val summaries = grouped.map { (subjName, markItems) ->
+                        val marksList = markItems.map { m ->
+                            MarkItem(
+                                id = m.id?.toString() ?: "",
                                 subject = subjName,
-                                averageMark = avg,
-                                marks = marksList,
-                                targetMark = 4.60
+                                subjectId = m.subjectId ?: 0L,
+                                value = m.value?.toIntOrNull() ?: 5,
+                                weight = m.weight ?: 1.0,
+                                date = m.date ?: "",
+                                topic = m.controlFormName ?: m.comment ?: "",
+                                isExam = m.isExam == true,
+                                controlFormName = m.controlFormName,
+                                comment = m.comment,
+                                createdAt = m.createdAt
                             )
                         }
-                        if (summaries.isNotEmpty()) {
-                            _subjectSummaries.value = summaries
-                            sessionManager.cachedSubjectSummaries = summaries
-                        }
+                        val totalWeight = marksList.sumOf { it.weight }
+                        val weightedSum = marksList.sumOf { it.value * it.weight }
+                        val avg = if (totalWeight > 0.0) weightedSum / totalWeight else 0.0
+                        SubjectSummary(
+                            subject = subjName,
+                            averageMark = avg,
+                            marks = marksList,
+                            targetMark = 4.60
+                        )
+                    }
+                    if (summaries.isNotEmpty()) {
+                        _subjectSummaries.value = summaries
+                        sessionManager.cachedSubjectSummaries = summaries
                     }
                 }
             }
@@ -654,9 +800,21 @@ class MeshRepository(private val sessionManager: SessionManager) {
 
             // 5.1 Реальный рейтинг щедрости (POST /persons/rating)
             if (activeClassUid.isNotBlank()) {
+                val cal = java.util.Calendar.getInstance()
+                cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                val startOfMonthStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal.time)
+                cal.set(java.util.Calendar.DAY_OF_MONTH, cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH))
+                val endOfMonthStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal.time)
+
                 val ratingResp = MeshNetworkClient.gamificationApi.getPersonsRating(
                     bearerToken, dynamicProfileId, "familymp", "diary-mobile",
-                    PersonsRatingRequestBody(filters = ClassUidFilter(classUid = activeClassUid))
+                    PersonsRatingRequestBody(
+                        filters = ClassUidFilter(
+                            classUid = activeClassUid,
+                            startedAt = startOfMonthStr,
+                            endedAt = endOfMonthStr
+                        )
+                    )
                 )
 
                 // 5.2 Поиск одноклассников (POST /persons/search)
@@ -720,19 +878,27 @@ class MeshRepository(private val sessionManager: SessionManager) {
             }
 
             val rewardsResp = MeshNetworkClient.gamificationApi.searchRewards(
-                bearerToken, dynamicProfileId, "familymp", "diary-mobile"
+                bearerToken, dynamicProfileId, "familymp", "diary-mobile", ru.mesh.expressive.data.remote.RewardsSearchRequestBody()
             )
-            if (rewardsResp.isSuccessful && rewardsResp.body() != null) {
+            if (rewardsResp.isSuccessful && rewardsResp.body() != null && rewardsResp.body()!!.items.isNotEmpty()) {
                 _rewards.value = rewardsResp.body()!!.items
                 sessionManager.cachedRewards = rewardsResp.body()!!.items
             }
 
             val feedResp = MeshNetworkClient.gamificationApi.getProfileRewards(
-                bearerToken, dynamicProfileId, "familymp", "diary-mobile", actualGamifId
+                token = bearerToken,
+                profileId = dynamicProfileId,
+                subsystem = "familymp",
+                clientType = "diary-mobile",
+                profileIdPath = actualGamifId,
+                request = ProfileRewardsRequestBody()
             )
             if (feedResp.isSuccessful && feedResp.body() != null) {
-                _profileRewards.value = feedResp.body()!!
-                sessionManager.cachedProfileRewards = feedResp.body()!!
+                val feedItems = feedResp.body()!!.items
+                if (feedItems.isNotEmpty()) {
+                    _profileRewards.value = feedItems
+                    sessionManager.cachedProfileRewards = feedItems
+                }
             }
         } catch (_: Exception) {}
 
@@ -785,14 +951,110 @@ class MeshRepository(private val sessionManager: SessionManager) {
         } catch (_: Exception) {}
 
         try {
-            // 7. Рейтинг успеваемости
-            if (activeGuid.isNotBlank() && _studentProfile.value.classUnitId > 0) {
+            // 7. Рейтинг успеваемости (GET /rank/class)
+            val effectiveGuid = if (activeGuid.isNotBlank()) activeGuid else sessionManager.cachedProfile?.contingentGuid.orEmpty()
+            val effectiveClassUnitId = if (_studentProfile.value.classUnitId > 0) _studentProfile.value.classUnitId else sessionManager.classUnitId
+            if (effectiveGuid.isNotBlank() && effectiveClassUnitId > 0) {
                 val ratingResp = MeshNetworkClient.ratingApi.getClassRank(
-                    bearerToken, "familymp", "mobile", activeGuid, _studentProfile.value.classUnitId, todayStr
+                    token = bearerToken,
+                    subsystem = "familymp",
+                    clientType = "diary-mobile",
+                    personId = effectiveGuid,
+                    classUnitId = effectiveClassUnitId,
+                    date = todayStr
                 )
                 if (ratingResp.isSuccessful && ratingResp.body() != null) {
-                    _ratingInfo.value = ratingResp.body()!!
-                    sessionManager.cachedRatingInfo = ratingResp.body()!!
+                    val rankList = ratingResp.body()!!
+                    val myItem = rankList.find { it.personId.equals(effectiveGuid, ignoreCase = true) }
+                    val classRank = myItem?.rank?.rankPlace ?: 0
+                    val avgMark = myItem?.rank?.averageMarkFive ?: 0.0
+                    val rankDelta = if (myItem?.rank?.rankStatus.equals("UP", ignoreCase = true)) 1 else if (myItem?.rank?.rankStatus.equals("DOWN", ignoreCase = true)) -1 else 0
+
+                    val rInfo = RatingInfo(
+                        classRank = classRank,
+                        totalInClass = rankList.size,
+                        score = (avgMark * 20).toInt(),
+                        rankChange = rankDelta
+                    )
+                    _ratingInfo.value = rInfo
+                    sessionManager.cachedRatingInfo = rInfo
+
+                    val classmatesMap = _classmates.value.associateBy { it.profileId }
+                    val classmatesGamifMap = _classmates.value.associateBy { it.gamificationId }
+
+                    val academicItems = coroutineScope {
+                        rankList.map { item ->
+                            async(Dispatchers.IO) {
+                                val isMe = item.personId.equals(effectiveGuid, ignoreCase = true)
+                                val place = item.rank?.rankPlace ?: 1
+                                val guid = item.personId.orEmpty()
+
+                                var name = if (isMe) "${_studentProfile.value.lastName} ${_studentProfile.value.firstName} (Вы)" else ""
+                                var gamifId = if (isMe) _gamificationProfile.value.gamificationId.orEmpty() else ""
+                                var pid = if (isMe) dynamicProfileId else 0L
+
+                                if (!isMe && guid.isNotBlank()) {
+                                    try {
+                                        val profResp = MeshNetworkClient.gamificationApi.getGamificationProfile(
+                                            token = bearerToken,
+                                            profileId = dynamicProfileId,
+                                            subsystem = "familymp",
+                                            clientType = "diary-mobile",
+                                            personId = guid
+                                        )
+                                        if (profResp.isSuccessful && profResp.body() != null) {
+                                            val p = profResp.body()!!
+                                            val fn = p.firstName.orEmpty()
+                                            val ln = p.lastName.orEmpty()
+                                            gamifId = p.gamificationId.orEmpty()
+                                            pid = p.id ?: 0L
+
+                                            val cm = classmatesMap[pid] ?: classmatesGamifMap[gamifId]
+                                            val fullLn = cm?.lastName?.ifBlank { ln } ?: ln
+                                            name = if (fn.isNotBlank()) "$fn $fullLn".trim() else ""
+                                        }
+                                    } catch (_: Exception) {}
+                                }
+
+                                AcademicClassRankItem(
+                                    rankPlace = place,
+                                    averageMark = item.rank?.averageMarkFive ?: 0.0,
+                                    rankStatus = item.rank?.rankStatus ?: "stable",
+                                    isCurrentUser = isMe,
+                                    personId = guid,
+                                    imageId = item.imageId,
+                                    displayName = name,
+                                    gamificationId = gamifId,
+                                    profileId = pid
+                                )
+                            }
+                        }.awaitAll()
+                    }.mapIndexed { idx, it ->
+                        if (it.displayName.isBlank()) {
+                            it.copy(displayName = "Ученик ${idx + 1}")
+                        } else it
+                    }.sortedWith(compareBy({ it.rankPlace }, { -it.averageMark }))
+
+                    _academicClassRanks.value = academicItems
+                    sessionManager.cachedAcademicClassRanks = academicItems
+                    android.util.Log.d("MeshRating", "Successfully loaded and resolved ${academicItems.size} academic ranks!")
+
+                    // Также обновляем рейтинг и средний балл в списке одноклассников
+                    if (academicItems.isNotEmpty()) {
+                        val rankByPid = academicItems.associateBy { it.profileId }
+                        val rankByGamif = academicItems.associateBy { it.gamificationId }
+                        val updated = _classmates.value.map { mate ->
+                            val foundRank = rankByPid[mate.profileId] ?: rankByGamif[mate.gamificationId]
+                            if (foundRank != null) {
+                                mate.copy(
+                                    rank = foundRank.rankPlace,
+                                    averageMark = foundRank.averageMark
+                                )
+                            } else mate
+                        }
+                        _classmates.value = updated
+                        sessionManager.cachedClassmates = updated
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -1262,17 +1524,57 @@ class MeshRepository(private val sessionManager: SessionManager) {
             return@withContext Pair(false, "Недостаточно звезд на балансе")
         }
 
-        try {
-            val personResp = MeshNetworkClient.gamificationApi.getPersonByGamificationId(
-                bearerToken, profileId, "familymp", "diary-mobile", gamificationId.trim().uppercase()
-            )
-            if (!personResp.isSuccessful || personResp.body() == null) {
-                return@withContext Pair(false, "Ученик с ID $gamificationId не найден")
+        if (rawToken.isNullOrBlank()) {
+            if (!_gamificationProfile.value.infiniteStarsOverride) {
+                val newBalance = (_gamificationProfile.value.coinsCount - costStars).coerceAtLeast(0)
+                val newSpent = _gamificationProfile.value.coinsSpent + costStars
+                _gamificationProfile.value = _gamificationProfile.value.copy(
+                    coinsCount = newBalance,
+                    coinsSpent = newSpent
+                )
             }
+            val targetReward = _rewards.value.find { it.id == rewardId }
+            val nowIso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).format(java.util.Date())
+            val localItem = ProfileRewardItem(
+                id = System.currentTimeMillis(),
+                name = targetReward?.title ?: "Подарок",
+                comment = comment.ifBlank { null },
+                sendingMode = if (isAnonymous) "PRIVATE" else "PUBLIC",
+                imageUrl = targetReward?.iconName,
+                animationUrl = targetReward?.animationUrl,
+                purchasedAt = nowIso,
+                from = PersonSearchItem(id = 1L, firstName = _studentProfile.value.firstName.ifBlank { "Я" }),
+                to = PersonSearchItem(id = 2L, firstName = if (gamificationId == "SELF") "Себе" else gamificationId)
+            )
+            _profileRewards.value = listOf(localItem) + _profileRewards.value
+            sessionManager.cachedProfileRewards = _profileRewards.value
+            return@withContext Pair(true, "Подарок успешно подарен!")
+        }
 
-            val recipient = personResp.body()!!
-            if (!recipient.isReceiveRewardsAllowed) {
-                return@withContext Pair(false, "Пользователь ограничил получение подарков в настройках")
+        try {
+            val recipientId: Long
+            val recipientName: String
+
+            val isSelf = gamificationId.trim().uppercase() in listOf("SELF", "MY_SELF") ||
+                         (_gamificationProfile.value.gamificationId != null && gamificationId.trim().equals(_gamificationProfile.value.gamificationId, ignoreCase = true))
+
+            if (isSelf) {
+                recipientId = _gamificationProfile.value.id ?: profileId
+                recipientName = _studentProfile.value.firstName.ifBlank { "себя" }
+            } else {
+                val personResp = MeshNetworkClient.gamificationApi.getPersonByGamificationId(
+                    bearerToken, profileId, "familymp", "diary-mobile", gamificationId.trim().uppercase()
+                )
+                if (!personResp.isSuccessful || personResp.body() == null) {
+                    return@withContext Pair(false, "Ученик с ID $gamificationId не найден")
+                }
+
+                val recipient = personResp.body()!!
+                if (!recipient.isReceiveRewardsAllowed) {
+                    return@withContext Pair(false, "Пользователь ограничил получение подарков в настройках")
+                }
+                recipientId = recipient.id
+                recipientName = "${recipient.firstName} ${recipient.lastName}"
             }
 
             val sendResp = MeshNetworkClient.gamificationApi.sendRewardGift(
@@ -1281,7 +1583,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
                 rewardId,
                 SendRewardGiftRequest(
                     comment = comment,
-                    recipientProfileIds = listOf(recipient.id),
+                    recipientProfileIds = listOf(recipientId),
                     sendingMode = if (isAnonymous) "PRIVATE" else "PUBLIC"
                 )
             )
@@ -1295,7 +1597,44 @@ class MeshRepository(private val sessionManager: SessionManager) {
                         coinsSpent = newSpent
                     )
                 }
-                return@withContext Pair(true, "Подарок успешно отправлен для ${recipient.firstName} ${recipient.lastName}!")
+
+                val targetReward = _rewards.value.find { it.id == rewardId }
+                val nowIso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).format(java.util.Date())
+                val localItem = ProfileRewardItem(
+                    id = System.currentTimeMillis(),
+                    name = targetReward?.title ?: "Подарок",
+                    comment = comment.ifBlank { null },
+                    sendingMode = if (isAnonymous) "PRIVATE" else "PUBLIC",
+                    imageUrl = targetReward?.iconName,
+                    animationUrl = targetReward?.animationUrl,
+                    purchasedAt = nowIso,
+                    from = PersonSearchItem(id = _gamificationProfile.value.id ?: profileId, firstName = _studentProfile.value.firstName, lastName = _studentProfile.value.lastName),
+                    to = PersonSearchItem(id = recipientId, firstName = recipientName)
+                )
+                _profileRewards.value = listOf(localItem) + _profileRewards.value
+                sessionManager.cachedProfileRewards = _profileRewards.value
+
+                kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val refreshed = MeshNetworkClient.gamificationApi.getProfileRewards(
+                            token = bearerToken,
+                            profileId = profileId,
+                            subsystem = "familymp",
+                            clientType = "diary-mobile",
+                            profileIdPath = senderGamifId,
+                            request = ProfileRewardsRequestBody()
+                        )
+                        if (refreshed.isSuccessful && refreshed.body() != null) {
+                            val items = refreshed.body()!!.items
+                            if (items.isNotEmpty()) {
+                                _profileRewards.value = items
+                                sessionManager.cachedProfileRewards = items
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                return@withContext Pair(true, "Подарок успешно отправлен для $recipientName!")
             } else {
                 return@withContext Pair(false, "Ошибка сервера при отправке подарка (${sendResp.code()})")
             }
@@ -1394,6 +1733,424 @@ class MeshRepository(private val sessionManager: SessionManager) {
         } catch (e: Exception) {
             false
         }
+    }
+
+    suspend fun fetchFeedRewards(
+        targetProfileId: Long? = null,
+        from: String? = null,
+        to: String? = null
+    ): List<ProfileRewardItem> = withContext(Dispatchers.IO) {
+        val rawToken = sessionManager.authToken
+        val bearerToken = if (!rawToken.isNullOrBlank() && !rawToken.startsWith("Bearer ")) "Bearer $rawToken" else rawToken.orEmpty()
+        val profileIdLong = sessionManager.profileId.toLongOrNull() ?: 0L
+        val gamifId = _gamificationProfile.value.id ?: profileIdLong
+        val actualProfileId = (targetProfileId ?: gamifId).toString()
+
+        if (bearerToken.isBlank()) return@withContext emptyList()
+
+        try {
+            val resp = MeshNetworkClient.gamificationApi.getProfileRewards(
+                token = bearerToken,
+                profileId = profileIdLong,
+                subsystem = "familymp",
+                clientType = "diary-mobile",
+                profileIdPath = actualProfileId,
+                from = from,
+                to = to,
+                request = ProfileRewardsRequestBody(
+                    pagination = RewardsPaginationDTO(pageNumber = 1, pageSize = 50),
+                    sorting = ProfileRewardsSortingDTO(orderBy = "purchasedAt", direction = "DESC")
+                )
+            )
+            if (resp.isSuccessful && resp.body() != null) {
+                return@withContext resp.body()!!.items
+            }
+        } catch (_: Exception) {}
+        emptyList()
+    }
+
+    suspend fun fetchMyPersonalRewards(): List<ProfileRewardItem> = withContext(Dispatchers.IO) {
+        val received = fetchFeedRewards(from = "ALL", to = "ME")
+        val sent = fetchFeedRewards(from = "ME", to = "OTHERS")
+        val combined = (received + sent).distinctBy { it.profileRewardId.takeIf { id -> id > 0 } ?: it.id }
+            .sortedByDescending { it.purchasedAt.orEmpty() }
+        combined
+    }
+
+    suspend fun fetchSubjectClassRank(subjectId: Long? = null): List<AcademicClassRankItem> = withContext(Dispatchers.IO) {
+        val token = sessionManager.authToken ?: return@withContext emptyList()
+        val bearerToken = if (token.startsWith("Bearer ")) token else "Bearer $token"
+        val effectiveGuid = sessionManager.cachedProfile?.contingentGuid ?: "3473f068-8ec0-47a1-920a-a18e75d6c389"
+        val effectiveClassUnitId = 2073368L
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val dynamicProfileId = sessionManager.profileId.toLongOrNull() ?: 0L
+
+        try {
+            val ratingResp = MeshNetworkClient.ratingApi.getClassRank(
+                token = bearerToken,
+                subsystem = "familymp",
+                clientType = "diary-mobile",
+                personId = effectiveGuid,
+                classUnitId = effectiveClassUnitId,
+                date = todayStr,
+                subjectId = subjectId
+            )
+            if (ratingResp.isSuccessful && ratingResp.body() != null) {
+                val rankList = ratingResp.body()!!
+                val classmatesMap = _classmates.value.associateBy { it.profileId }
+                val classmatesGamifMap = _classmates.value.associateBy { it.gamificationId }
+                val cachedRanksMap = _academicClassRanks.value.associateBy { it.personId }
+
+                val items = coroutineScope {
+                    rankList.map { item ->
+                        async(Dispatchers.IO) {
+                            val isMe = item.personId.equals(effectiveGuid, ignoreCase = true)
+                            val place = item.rank?.rankPlace ?: 1
+                            val guid = item.personId.orEmpty()
+
+                            val existing = cachedRanksMap[guid]
+                            var name = existing?.displayName ?: ""
+                            var gamifId = existing?.gamificationId ?: ""
+                            var pid = existing?.profileId ?: 0L
+
+                            if (isMe) {
+                                name = "${_studentProfile.value.lastName} ${_studentProfile.value.firstName} (Вы)"
+                                gamifId = _gamificationProfile.value.gamificationId.orEmpty()
+                                pid = dynamicProfileId
+                            } else if (name.isBlank() && guid.isNotBlank()) {
+                                try {
+                                    val profResp = MeshNetworkClient.gamificationApi.getGamificationProfile(
+                                        token = bearerToken,
+                                        profileId = dynamicProfileId,
+                                        subsystem = "familymp",
+                                        clientType = "diary-mobile",
+                                        personId = guid
+                                    )
+                                    if (profResp.isSuccessful && profResp.body() != null) {
+                                        val p = profResp.body()!!
+                                        val fn = p.firstName.orEmpty()
+                                        val ln = p.lastName.orEmpty()
+                                        gamifId = p.gamificationId.orEmpty()
+                                        pid = p.id ?: 0L
+
+                                        val cm = classmatesMap[pid] ?: classmatesGamifMap[gamifId]
+                                        val fullLn = cm?.lastName?.ifBlank { ln } ?: ln
+                                        name = if (fn.isNotBlank()) "$fn $fullLn".trim() else ""
+                                    }
+                                } catch (_: Exception) {}
+                            }
+
+                            AcademicClassRankItem(
+                                rankPlace = place,
+                                averageMark = item.rank?.averageMarkFive ?: 0.0,
+                                rankStatus = item.rank?.rankStatus ?: "stable",
+                                isCurrentUser = isMe,
+                                personId = guid,
+                                imageId = item.imageId,
+                                displayName = name,
+                                gamificationId = gamifId,
+                                profileId = pid
+                            )
+                        }
+                    }.awaitAll()
+                }.mapIndexed { idx, it ->
+                    if (it.displayName.isBlank()) {
+                        it.copy(displayName = "Ученик ${idx + 1}")
+                    } else it
+                }.sortedWith(compareBy({ it.rankPlace }, { -it.averageMark }))
+
+                return@withContext items
+            }
+        } catch (_: Exception) {}
+        emptyList()
+    }
+
+    suspend fun fetchLessonDetails(lessonId: Long): LessonScheduleItem? = withContext(Dispatchers.IO) {
+        val token = sessionManager.authToken ?: return@withContext null
+        val bearerToken = if (token.startsWith("Bearer ")) token else "Bearer $token"
+        val effectiveGuid = sessionManager.cachedProfile?.contingentGuid ?: "3473f068-8ec0-47a1-920a-a18e75d6c389"
+        val dynamicProfileId = sessionManager.profileId.toLongOrNull() ?: 0L
+        val studentId = sessionManager.studentId
+
+        try {
+            val resp = MeshNetworkClient.familyMobileApi.getLessonScheduleItemDetails(
+                token = bearerToken,
+                profileId = dynamicProfileId,
+                subsystem = "familymp",
+                clientType = "diary-mobile",
+                lessonId = lessonId,
+                studentId = studentId,
+                personId = effectiveGuid,
+                type = "PLAN"
+            )
+            if (resp.isSuccessful && resp.body() != null) {
+                val b = resp.body()!!
+                val t = b.teacher
+                val teacherName = "${t?.lastName.orEmpty()} ${t?.firstName.orEmpty()} ${t?.middleName.orEmpty()}".trim()
+                val roomStr = listOfNotNull(b.roomNumber?.takeIf { it.isNotBlank() }?.let { "Каб. $it" }, b.roomName).joinToString(" • ")
+                val hw = b.lessonHomeworks?.firstOrNull()?.homework
+                val firstMark = b.marks?.firstOrNull()
+                val markVal = firstMark?.value?.toIntOrNull()
+                val markW = firstMark?.weight ?: 1.0
+
+                // Filter and enrich test materials
+                val rawMaterials = b.details?.additionalMaterials.orEmpty()
+                val testMaterials = mutableListOf<LessonMaterialItem>()
+
+                // Try to resolve exact launcher URLs via materialsApi
+                val uuidsToFetch = rawMaterials.mapNotNull { it.uuid?.takeIf { u -> u.isNotBlank() } }
+                val detailedMaterialsMap = mutableMapOf<String, DetailedMaterialItem>()
+                if (uuidsToFetch.isNotEmpty() && !bearerToken.isNullOrBlank()) {
+                    try {
+                        val matReq = AdditionalMaterialsRequest(
+                            materials = uuidsToFetch.map { MaterialRequestItem(uuid = it, selectedMode = "learn", purpose = "lesson") }
+                        )
+                        val matResp = MeshNetworkClient.materialsApi.getAdditionalMaterials(
+                            token = bearerToken,
+                            profileId = dynamicProfileId,
+                            body = matReq
+                        )
+                        if (matResp.isSuccessful) {
+                            matResp.body()?.additionalMaterials.orEmpty().forEach { wrapper ->
+                                wrapper.materialGroups.orEmpty().forEach { group ->
+                                    group.materials.orEmpty().forEach { dMat ->
+                                        dMat.uuid?.let { detailedMaterialsMap[it] = dMat }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                rawMaterials.forEach { mat ->
+                    val type = mat.type.orEmpty().lowercase()
+                    val typeName = mat.typeName.orEmpty().lowercase()
+                    val actionName = mat.actionName.orEmpty().lowercase()
+                    val title = mat.title.orEmpty().lowercase()
+
+                    val isTest = type.contains("test") ||
+                        type == "kim_variant" ||
+                        type == "test_specification" ||
+                        type == "final_test" ||
+                        type == "functional_grammar_test" ||
+                        typeName.contains("тест") ||
+                        title.contains("тест") ||
+                        actionName.contains("пройти") ||
+                        actionName.contains("изучить")
+
+                    if (isTest) {
+                        val detailed = mat.uuid?.let { detailedMaterialsMap[it] }
+                        val launchUrl = detailed?.urls?.find { it.type == "launch" }?.url
+                            ?: detailed?.urls?.firstOrNull()?.url
+                            ?: mat.urls?.firstOrNull()?.url
+
+                        val finalUrl = when {
+                            !launchUrl.isNullOrBlank() -> launchUrl
+                            !mat.uuid.isNullOrBlank() -> "https://school.mos.ru/api/launcher/v1/launch?activity_url=${java.net.URLEncoder.encode("https://uchebnik.mos.ru/cms/materials/${mat.uuid}/launch", "UTF-8")}"
+                            mat.id != null -> "https://school.mos.ru/api/launcher/v1/launch?activity_url=${java.net.URLEncoder.encode("https://uchebnik.mos.ru/cms/materials/${mat.id}/launch", "UTF-8")}"
+                            else -> "https://uchebnik.mos.ru"
+                        }
+
+                        val matTitle = detailed?.title?.takeIf { it.isNotBlank() }
+                            ?: mat.title?.takeIf { it.isNotBlank() }
+                            ?: detailed?.typeName?.takeIf { it.isNotBlank() }
+                            ?: mat.typeName?.takeIf { it.isNotBlank() }
+                            ?: "Тестовое задание"
+
+                        val matTypeName = detailed?.typeName?.takeIf { it.isNotBlank() }
+                            ?: mat.typeName?.takeIf { it.isNotBlank() }
+                            ?: "Тест"
+
+                        testMaterials.add(
+                            LessonMaterialItem(
+                                title = matTitle,
+                                typeName = matTypeName,
+                                url = finalUrl
+                            )
+                        )
+                    }
+                }
+
+                return@withContext LessonScheduleItem(
+                    id = b.id?.toString() ?: lessonId.toString(),
+                    subject = b.subjectName.orEmpty(),
+                    subjectId = b.subjectId ?: 0L,
+                    lessonNumber = 1,
+                    startTime = "",
+                    endTime = "",
+                    room = roomStr,
+                    teacherName = teacherName.ifBlank { "Учитель" },
+                    mark = markVal,
+                    markWeight = markW,
+                    markComment = firstMark?.comment,
+                    markControlForm = firstMark?.controlFormName,
+                    markCreatedAt = firstMark?.createdAt,
+                    homework = hw,
+                    topic = b.details?.lessonTopic,
+                    testMaterials = testMaterials
+                )
+            }
+        } catch (_: Exception) {}
+        null
+    }
+
+    suspend fun resolveTestLaunchUrl(rawUrl: String): String = withContext(Dispatchers.IO) {
+        try {
+            if (!rawUrl.contains("launcher") || !rawUrl.contains("activity_url=")) {
+                return@withContext rawUrl
+            }
+            val urlToCall = if (rawUrl.contains("/v1/launch")) {
+                rawUrl.replace("/v1/launch", "/v1/url")
+            } else if (rawUrl.contains("/v2/launch")) {
+                rawUrl.replace("/v2/launch", "/v2/url")
+            } else {
+                rawUrl
+            }
+
+            val token = sessionManager.authToken?.replace("Bearer ", "") ?: ""
+            val profile = _studentProfile.value
+            val guid = profile.contingentGuid.ifBlank { "3473f068-8ec0-47a1-920a-a18e75d6c389" }
+            val pid = profile.profileId.toString()
+
+            val cookieHeader = "auth_token=$token; aupd_token=$token; student_person_id=$guid; aupd_current_role=2:1; profile_id=$pid"
+
+            val request = okhttp3.Request.Builder()
+                .url(urlToCall)
+                .addHeader("Cookie", cookieHeader)
+                .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36 MeshClient/2.0 MobileApp")
+                .get()
+                .build()
+
+            val response = MeshNetworkClient.okHttpClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val resolved = response.body?.string()?.trim()
+                if (!resolved.isNullOrBlank() && resolved.startsWith("http")) {
+                    return@withContext resolved
+                }
+            }
+        } catch (_: Exception) {}
+        return@withContext rawUrl
+    }
+
+    fun calculateVacationPeriods(items: List<PeriodScheduleItemDTO>): List<VacationPeriodInfo> {
+        if (items.isEmpty()) return emptyList()
+        val vacations = mutableListOf<VacationPeriodInfo>()
+        val vacationDays = items.filter { it.type == "vacation" || it.title.contains("каникул", ignoreCase = true) }
+        if (vacationDays.isEmpty()) return emptyList()
+
+        val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+
+        var currentGroup = mutableListOf<PeriodScheduleItemDTO>()
+        for (day in vacationDays) {
+            if (currentGroup.isEmpty()) {
+                currentGroup.add(day)
+            } else {
+                val last = currentGroup.last()
+                try {
+                    val d1 = sdf.parse(last.date)
+                    val d2 = sdf.parse(day.date)
+                    val diffDays = if (d1 != null && d2 != null) ((d2.time - d1.time) / (1000 * 60 * 60 * 24)).toInt() else 99
+                    if (diffDays <= 2 && (day.title == last.title || day.title.contains("каникул", ignoreCase = true))) {
+                        currentGroup.add(day)
+                    } else {
+                        val start = currentGroup.first().date
+                        val end = currentGroup.last().date
+                        val title = currentGroup.first().title.ifBlank { "Каникулы" }
+                        val dStart = sdf.parse(start)
+                        val dEnd = sdf.parse(end)
+                        val dToday = sdf.parse(todayStr)
+                        val isCurrent = dToday != null && dStart != null && dEnd != null && dToday in dStart..dEnd
+                        val isUpcoming = dToday != null && dStart != null && dToday.before(dStart)
+                        val daysUntil = if (isUpcoming && dStart != null && dToday != null) ((dStart.time - dToday.time) / (1000 * 60 * 60 * 24)).toInt() else null
+                        vacations.add(VacationPeriodInfo(title, start, end, currentGroup.size, isCurrent, isUpcoming, daysUntil))
+                        currentGroup = mutableListOf(day)
+                    }
+                } catch (_: Exception) {
+                    currentGroup.add(day)
+                }
+            }
+        }
+        if (currentGroup.isNotEmpty()) {
+            val start = currentGroup.first().date
+            val end = currentGroup.last().date
+            val title = currentGroup.first().title.ifBlank { "Каникулы" }
+            try {
+                val dStart = sdf.parse(start)
+                val dEnd = sdf.parse(end)
+                val dToday = sdf.parse(todayStr)
+                val isCurrent = dToday != null && dStart != null && dEnd != null && dToday in dStart..dEnd
+                val isUpcoming = dToday != null && dStart != null && dToday.before(dStart)
+                val daysUntil = if (isUpcoming && dStart != null && dToday != null) ((dStart.time - dToday.time) / (1000 * 60 * 60 * 24)).toInt() else null
+                vacations.add(VacationPeriodInfo(title, start, end, currentGroup.size, isCurrent, isUpcoming, daysUntil))
+            } catch (_: Exception) {}
+        }
+        return vacations
+    }
+
+    suspend fun uploadHomeworkAttachment(
+        homeworkEntryStudentId: Long,
+        fileUri: android.net.Uri,
+        context: android.content.Context
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val rawToken = sessionManager.authToken ?: return@withContext false
+            val cleanToken = if (rawToken.startsWith("Bearer ")) rawToken else "Bearer $rawToken"
+            val profileId = sessionManager.profileId.toLongOrNull() ?: 0L
+            val contentResolver = context.contentResolver
+
+            var fileName = "attachment_${System.currentTimeMillis()}"
+            contentResolver.query(fileUri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex != -1 && cursor.moveToFirst()) {
+                    val dn = cursor.getString(nameIndex)
+                    if (!dn.isNullOrBlank()) fileName = dn
+                }
+            }
+
+            val inputStream = contentResolver.openInputStream(fileUri) ?: return@withContext false
+            val bytes = inputStream.readBytes()
+            inputStream.close()
+
+            val mimeType = contentResolver.getType(fileUri) ?: "application/octet-stream"
+            val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val part = okhttp3.MultipartBody.Part.createFormData("multipartFile", fileName, requestBody)
+
+            val resp = MeshNetworkClient.familyMobileApi.uploadHomeworkAttachment(
+                token = cleanToken,
+                profileId = profileId,
+                homeworkEntryStudentId = homeworkEntryStudentId,
+                file = part
+            )
+            if (resp.isSuccessful) {
+                fetchRemoteData()
+                return@withContext true
+            }
+        } catch (_: Exception) {}
+        false
+    }
+
+    suspend fun deleteHomeworkAttachment(
+        homeworkEntryStudentId: Long,
+        fileId: Long
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val rawToken = sessionManager.authToken ?: return@withContext false
+            val cleanToken = if (rawToken.startsWith("Bearer ")) rawToken else "Bearer $rawToken"
+            val profileId = sessionManager.profileId.toLongOrNull() ?: 0L
+
+            val resp = MeshNetworkClient.familyMobileApi.deleteHomeworkAttachment(
+                token = cleanToken,
+                profileId = profileId,
+                homeworkEntryStudentId = homeworkEntryStudentId,
+                fileId = fileId
+            )
+            if (resp.isSuccessful) {
+                fetchRemoteData()
+                return@withContext true
+            }
+        } catch (_: Exception) {}
+        false
     }
 
     fun logout() {

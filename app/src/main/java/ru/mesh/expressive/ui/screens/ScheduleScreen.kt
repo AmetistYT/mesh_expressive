@@ -82,6 +82,17 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
         }
     }
 
+    val hideEmptyScheduleDays by viewModel.hideEmptyScheduleDays.collectAsState()
+
+    val displayedWeekDays = remember(weekDays, weekSchedule, hideEmptyScheduleDays) {
+        if (!hideEmptyScheduleDays) weekDays
+        else {
+            weekDays.filter { day ->
+                day.isToday || (weekSchedule[day.dateStr]?.isNotEmpty() == true)
+            }.ifEmpty { weekDays }
+        }
+    }
+
     val daysDates = remember(weekDays) {
         weekDays.map { it.dateStr }
     }
@@ -196,7 +207,7 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            weekDays.forEach { day ->
+                            displayedWeekDays.forEach { day ->
                                 val isSelected = day.dayIndex == selectedDayIndex
                                 val isToday = day.isToday
 
@@ -289,8 +300,21 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
                 }
             } else {
                 items(lessons) { lesson ->
-                    DetailedLessonCard(lesson = lesson, isCompact = isCompactSchedule)
+                    DetailedLessonCard(
+                        lesson = lesson,
+                        isCompact = isCompactSchedule,
+                        onClick = { viewModel.openLessonDetails(lesson) }
+                    )
                 }
+            }
+
+            // Каникулы и график периодов внизу расписания
+            item {
+                Spacer(modifier = Modifier.height(6.dp))
+                ru.mesh.expressive.ui.components.VacationsCard(
+                    viewModel = viewModel,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
             }
         }
     }
@@ -299,11 +323,14 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
 @Composable
 fun DetailedLessonCard(
     lesson: LessonScheduleItem,
-    isCompact: Boolean = false
+    isCompact: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
     if (isCompact) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(
                 containerColor = if (lesson.isOngoing)
@@ -393,7 +420,9 @@ fun DetailedLessonCard(
     } else {
         // Standard detailed view: room moved to time line, teacher removed
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
             shape = ExpressiveCardShape,
             colors = CardDefaults.cardColors(
                 containerColor = if (lesson.isOngoing)

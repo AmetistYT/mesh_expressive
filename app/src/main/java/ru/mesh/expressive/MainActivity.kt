@@ -66,25 +66,78 @@ class MainActivity : ComponentActivity() {
         val sessionManager = SessionManager(applicationContext)
         val repository = MeshRepository(sessionManager)
 
+        val imageLoader = coil.ImageLoader.Builder(this)
+            .components {
+                if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    add(coil.decode.ImageDecoderDecoder.Factory())
+                } else {
+                    add(coil.decode.GifDecoder.Factory())
+                }
+            }
+            .memoryCache {
+                coil.memory.MemoryCache.Builder(this)
+                    .maxSizePercent(0.35)
+                    .build()
+            }
+            .diskCache {
+                coil.disk.DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(100L * 1024 * 1024)
+                    .build()
+            }
+            .respectCacheHeaders(false)
+            .crossfade(false)
+            .build()
+        coil.Coil.setImageLoader(imageLoader)
+
+        // Prefetch all 18 real MEsh gift animations into memory/disk cache immediately
+        ru.mesh.expressive.data.repository.DemoMockDataProvider.rewards.forEach { gift ->
+            val url = gift.animationUrl ?: gift.iconName
+            if (!url.isNullOrBlank()) {
+                val req = coil.request.ImageRequest.Builder(this)
+                    .data(url)
+                    .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .build()
+                imageLoader.enqueue(req)
+            }
+        }
+
         setContent {
             var isMonetEnabled by remember { mutableStateOf(sessionManager.isMonetEnabled) }
             val mainViewModel: MeshMainViewModel = viewModel(
                 factory = MeshMainViewModel.Factory(repository, sessionManager)
             )
 
-            MeshExpressiveTheme(dynamicColor = isMonetEnabled) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+            val themeMode by mainViewModel.themeMode.collectAsState()
+            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val useDarkTheme = when (themeMode) {
+                "DARK" -> true
+                "LIGHT" -> false
+                else -> isSystemDark
+            }
+
+            val enableSpringPhysics by mainViewModel.enableSpringPhysics.collectAsState()
+            val hapticFeedbackEnabled by mainViewModel.hapticFeedbackEnabled.collectAsState()
+
+            MeshExpressiveTheme(darkTheme = useDarkTheme, dynamicColor = isMonetEnabled) {
+                CompositionLocalProvider(
+                    ru.mesh.expressive.ui.components.LocalSpringPhysicsEnabled provides enableSpringPhysics,
+                    ru.mesh.expressive.ui.components.LocalHapticFeedbackEnabled provides hapticFeedbackEnabled
                 ) {
-                    MeshMainApp(
-                        viewModel = mainViewModel,
-                        isMonetEnabled = isMonetEnabled,
-                        onToggleMonet = {
-                            isMonetEnabled = it
-                            sessionManager.isMonetEnabled = it
-                        }
-                    )
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        MeshMainApp(
+                            viewModel = mainViewModel,
+                            isMonetEnabled = isMonetEnabled,
+                            onToggleMonet = {
+                                isMonetEnabled = it
+                                sessionManager.isMonetEnabled = it
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -99,6 +152,7 @@ fun MeshMainApp(
     onToggleMonet: (Boolean) -> Unit
 ) {
     val currentTab by viewModel.currentTab.collectAsState()
+    val isGiftSendActive by viewModel.isGiftSendActive.collectAsState()
     val showOnboardingGuide by viewModel.showOnboardingGuide.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
@@ -115,11 +169,24 @@ fun MeshMainApp(
         )
     }
 
-    val initialDockIndex = remember { dockTabs.indexOf(currentTab).coerceAtLeast(0) }
+    val initialDockIndex = remember {
+        val savedTabStr = viewModel.sessionManager.startTab
+        val savedTab = try { MainTab.valueOf(savedTabStr) } catch (_: Exception) { MainTab.DASHBOARD }
+        val idx = dockTabs.indexOf(savedTab)
+        if (idx >= 0) idx else 0
+    }
     val pagerState = rememberPagerState(
         initialPage = initialDockIndex,
         pageCount = { dockTabs.size }
     )
+
+    LaunchedEffect(Unit) {
+        val savedTabStr = viewModel.sessionManager.startTab
+        val savedTab = try { MainTab.valueOf(savedTabStr) } catch (_: Exception) { MainTab.DASHBOARD }
+        if (savedTab != MainTab.DASHBOARD) {
+            viewModel.selectTab(savedTab)
+        }
+    }
 
     var isDockClickAnimating by remember { mutableStateOf(false) }
 
@@ -159,6 +226,7 @@ fun MeshMainApp(
 
     val achievementServices = remember {
         listOf(
+            DrawerEntry(MainTab.PORTFOLIO, "Портфолио и Олимпиады", Icons.Default.MilitaryTech),
             DrawerEntry(MainTab.GIFTS, "Подарки и Звёзды", Icons.Default.CardGiftcard),
             DrawerEntry(MainTab.RATING, "Рейтинг успеваемости", Icons.Default.EmojiEvents)
         )
@@ -441,7 +509,7 @@ fun MeshMainApp(
         ) {
         Scaffold(
             topBar = {
-                if (currentTab != MainTab.AUTH) {
+                if (currentTab != MainTab.AUTH && !isGiftSendActive) {
                     Surface(
                         shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
                         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -455,6 +523,7 @@ fun MeshMainApp(
                                         MainTab.SCHEDULE -> "Расписание"
                                         MainTab.HOMEWORK -> "Задания"
                                         MainTab.MARKS -> "Оценки"
+                                        MainTab.PORTFOLIO -> "Портфолио и Олимпиады"
                                         MainTab.GIFTS -> "Подарки и Звезды"
                                         MainTab.CLASSMATES -> "Мой класс"
                                         MainTab.RATING -> "Рейтинг"
@@ -476,6 +545,33 @@ fun MeshMainApp(
                                 }
                             },
                             actions = {
+                                val isOffline by viewModel.isOffline.collectAsState()
+                                if (isOffline) {
+                                    Surface(
+                                        shape = PillShape,
+                                        color = MaterialTheme.colorScheme.errorContainer,
+                                        modifier = Modifier.padding(end = 6.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Default.CloudOff,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(13.dp),
+                                                tint = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                "Офлайн",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                        }
+                                    }
+                                }
+
                                 IconButton(
                                     onClick = { viewModel.selectTab(MainTab.SETTINGS) },
                                     modifier = Modifier.onGloballyPositioned { profileTargetRect = it.boundsInRoot() }
@@ -525,9 +621,11 @@ fun MeshMainApp(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = if (currentTab == MainTab.AUTH) 0.dp else paddingValues.calculateTopPadding())
+                    .padding(top = if (currentTab == MainTab.AUTH || isGiftSendActive) 0.dp else paddingValues.calculateTopPadding())
             ) {
-                if (currentTab in dockTabs) {
+                if (isGiftSendActive) {
+                    GiftSendScreen(viewModel = viewModel)
+                } else if (currentTab in dockTabs) {
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize()
@@ -553,6 +651,7 @@ fun MeshMainApp(
                         label = "SecondaryScreen"
                     ) { tab ->
                         when (tab) {
+                            MainTab.PORTFOLIO -> PortfolioScreen(viewModel = viewModel)
                             MainTab.GIFTS -> GiftsScreen(viewModel = viewModel)
                             MainTab.CLASSMATES -> ClassmatesScreen(viewModel = viewModel)
                             MainTab.RATING -> RatingScreen(viewModel = viewModel)
@@ -573,10 +672,13 @@ fun MeshMainApp(
                     }
                 }
 
-                if (currentTab != MainTab.AUTH) {
+                if (currentTab != MainTab.AUTH && !isGiftSendActive) {
+                    val isHaptic = ru.mesh.expressive.ui.components.LocalHapticFeedbackEnabled.current
+                    val haptic = LocalHapticFeedback.current
                     ExpressiveFloatingDock(
                         currentTab = currentTab,
                         onTabSelected = { tab ->
+                            if (isHaptic) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.selectTab(tab)
                             val targetIndex = dockTabs.indexOf(tab)
                             if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
@@ -594,6 +696,11 @@ fun MeshMainApp(
                 }
             }
         }
+
+        ru.mesh.expressive.ui.components.LessonDetailBottomSheet(viewModel = viewModel)
+        ru.mesh.expressive.ui.components.MarkDetailBottomSheet(viewModel = viewModel)
+        ru.mesh.expressive.ui.components.HomeworkDetailBottomSheet(viewModel = viewModel)
+        ru.mesh.expressive.ui.components.TestExecutionWebViewDialog(viewModel = viewModel)
 
         if (showOnboardingGuide && currentTab != MainTab.AUTH) {
             ru.mesh.expressive.ui.components.OnboardingGuideOverlay(
@@ -660,29 +767,66 @@ fun ExpressiveFloatingDock(
         )
     }
 
-    val tabBounds = remember { mutableMapOf<MainTab, Rect>() }
-
     val currentTabState by rememberUpdatedState(currentTab)
     val onTabSelectedState by rememberUpdatedState(onTabSelected)
 
     val coroutineScope = rememberCoroutineScope()
+    val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+
     val dropletWidthPx = density.run { 68.dp.toPx() }
     val dropletHeightPx = density.run { 42.dp.toPx() }
 
+    // Precalculate deterministic resting expanded width for every tab
+    val fullTabWidthsPx = remember(density) {
+        tabs.associate { (tab, _, label) ->
+            val tw = textMeasurer.measure(label, labelStyle).size.width
+            val totalPx = density.run { 56.dp.toPx() } + tw
+            tab to totalPx
+        }
+    }
+
     val animDropletLeft = remember { Animatable(0f) }
-    val animDropletWidth = remember { Animatable(dropletWidthPx) }
-    val animDropletScale = remember { Animatable(1.0f) }
-    val animDropletElevation = remember { Animatable(0f) }
+    val settleProgress = remember { Animatable(1f) }
 
     var isDragging by remember { mutableStateOf(false) }
     var isSettling by remember { mutableStateOf(false) }
     val isDropletActive = isDragging || isSettling
 
+    var releaseLeft by remember { mutableFloatStateOf(0f) }
+    var releaseWidth by remember { mutableFloatStateOf(0f) }
+
     var fingerX by remember { mutableFloatStateOf(0f) }
     var lastDeltaX by remember { mutableFloatStateOf(0f) }
     var dockWidth by remember { mutableFloatStateOf(0f) }
 
-    val activeRect = tabBounds[currentTab]
+    val activeIndex = remember(currentTab) { tabs.indexOfFirst { it.first == currentTab }.coerceAtLeast(0) }
+    val targetLeft = density.run { (activeIndex * 50).dp.toPx() }
+    val targetWidth = fullTabWidthsPx[currentTab] ?: dropletWidthPx
+
+    val curDropletLeft = if (isDragging) {
+        animDropletLeft.value
+    } else {
+        releaseLeft + (targetLeft - releaseLeft) * settleProgress.value
+    }
+
+    val curDropletWidth = if (isDragging) {
+        dropletWidthPx
+    } else {
+        releaseWidth + (targetWidth - releaseWidth) * settleProgress.value
+    }
+
+    val curScale = if (isDragging) {
+        1.12f
+    } else {
+        1.12f - (0.12f * settleProgress.value)
+    }
+
+    val curElevation = if (isDragging) {
+        density.run { 8.dp.toPx() }
+    } else {
+        density.run { 8.dp.toPx() } * (1f - settleProgress.value)
+    }
 
     // Liquid squish & stretch physics (active only during active drag)
     val stretchX = if (isDragging) {
@@ -716,11 +860,12 @@ fun ExpressiveFloatingDock(
                             while (true) {
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 val curTab = currentTabState
-                                val rect = tabBounds[curTab]
+                                val curIndex = tabs.indexOfFirst { it.first == curTab }.coerceAtLeast(0)
+                                val activeLeft = density.run { (curIndex * 50).dp.toPx() }
+                                val activeW = fullTabWidthsPx[curTab] ?: dropletWidthPx
 
-                                val isOverActive = rect != null &&
-                                    down.position.x >= rect.left - 20.dp.toPx() &&
-                                    down.position.x <= rect.right + 20.dp.toPx()
+                                val isOverActive = down.position.x >= activeLeft - 20.dp.toPx() &&
+                                    down.position.x <= activeLeft + activeW + 20.dp.toPx()
 
                                 if (!isOverActive) {
                                     continue
@@ -752,9 +897,7 @@ fun ExpressiveFloatingDock(
                                         val curDropX = (fingerX - dropletWidthPx / 2f).coerceIn(4f, (dockWidth - dropletWidthPx - 4f).coerceAtLeast(4f))
                                         coroutineScope.launch {
                                             animDropletLeft.snapTo(curDropX)
-                                            animDropletWidth.snapTo(dropletWidthPx)
-                                            animDropletScale.snapTo(1.12f)
-                                            animDropletElevation.snapTo(density.run { 8.dp.toPx() })
+                                            settleProgress.snapTo(0f)
                                         }
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
@@ -784,44 +927,21 @@ fun ExpressiveFloatingDock(
                                 }
 
                                 if (dragActive) {
+                                    releaseLeft = animDropletLeft.value
+                                    releaseWidth = dropletWidthPx
                                     isDragging = false
                                     isSettling = true
                                     lastDeltaX = 0f
 
-                                    val finalTab = currentTabState
-                                    val finalRect = tabBounds[finalTab]
-                                    val targetLeft = finalRect?.left ?: animDropletLeft.value
-                                    val targetWidth = finalRect?.width ?: dropletWidthPx
-
                                     coroutineScope.launch {
-                                        val j1 = launch {
-                                            animDropletLeft.animateTo(
-                                                targetValue = targetLeft,
-                                                animationSpec = spring(dampingRatio = 0.70f, stiffness = 380f)
+                                        settleProgress.snapTo(0f)
+                                        settleProgress.animateTo(
+                                            targetValue = 1f,
+                                            animationSpec = spring(
+                                                dampingRatio = 0.76f,
+                                                stiffness = 320f
                                             )
-                                        }
-                                        val j2 = launch {
-                                            animDropletWidth.animateTo(
-                                                targetValue = targetWidth,
-                                                animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f)
-                                            )
-                                        }
-                                        val j3 = launch {
-                                            animDropletScale.animateTo(
-                                                targetValue = 1.0f,
-                                                animationSpec = spring(dampingRatio = 0.65f, stiffness = 420f)
-                                            )
-                                        }
-                                        val j4 = launch {
-                                            animDropletElevation.animateTo(
-                                                targetValue = 0f,
-                                                animationSpec = spring(dampingRatio = 0.80f, stiffness = 400f)
-                                            )
-                                        }
-                                        j1.join()
-                                        j2.join()
-                                        j3.join()
-                                        j4.join()
+                                        )
                                         isSettling = false
                                     }
                                 }
@@ -832,16 +952,16 @@ fun ExpressiveFloatingDock(
             ) {
                 // 1. Fluid Droplet Selection Card — RENDERED WHILE DRAGGING OR SETTLING!
                 if (isDropletActive) {
-                    val wDp = density.run { animDropletWidth.value.toDp() }
+                    val wDp = density.run { curDropletWidth.toDp() }
                     val hDp = density.run { dropletHeightPx.toDp() }
                     Box(
                         modifier = Modifier
-                            .offset { IntOffset(animDropletLeft.value.roundToInt(), (activeRect?.top ?: 0f).roundToInt()) }
+                            .offset { IntOffset(curDropletLeft.roundToInt(), 0) }
                             .size(width = wDp, height = hDp)
                             .graphicsLayer {
-                                this.scaleX = animDropletScale.value * stretchX
-                                this.scaleY = animDropletScale.value * stretchY
-                                this.shadowElevation = animDropletElevation.value
+                                this.scaleX = curScale * stretchX
+                                this.scaleY = curScale * stretchY
+                                this.shadowElevation = curElevation
                                 this.shape = PillShape
                             }
                             .clip(PillShape)
@@ -857,9 +977,9 @@ fun ExpressiveFloatingDock(
                     tabs.forEach { (tab, icons, label) ->
                         val isSelected = currentTab == tab
 
-                        // Normal tap background: rendered when droplet is NOT active
+                        // Normal tap background: starts fading in on release, perfectly matching the droplet
                         val animBgColor by animateColorAsState(
-                            targetValue = if (isSelected && !isDropletActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            targetValue = if (isSelected && !isDragging) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                             animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f),
                             label = "dockItemBg"
                         )
@@ -873,13 +993,6 @@ fun ExpressiveFloatingDock(
                             shape = PillShape,
                             color = animBgColor,
                             modifier = Modifier
-                                .onGloballyPositioned { coords ->
-                                    val pos = coords.positionInParent()
-                                    val size = coords.size
-                                    tabBounds[tab] = Rect(
-                                        pos.x, pos.y, pos.x + size.width, pos.y + size.height
-                                    )
-                                }
                                 .clip(PillShape)
                                 .clickable { onTabSelected(tab) }
                         ) {

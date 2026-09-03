@@ -13,7 +13,7 @@ import ru.mesh.expressive.data.repository.AutoCompleteResult
 import ru.mesh.expressive.data.repository.MeshRepository
 
 enum class MainTab {
-    DASHBOARD, SCHEDULE, HOMEWORK, MARKS, GIFTS, RATING, CLASSMATES, ATTENDANCE, MEALS, SETTINGS, AUTH
+    DASHBOARD, SCHEDULE, HOMEWORK, MARKS, GIFTS, RATING, CLASSMATES, ATTENDANCE, MEALS, PORTFOLIO, SETTINGS, AUTH
 }
 
 enum class DashboardDay {
@@ -25,8 +25,8 @@ enum class MarksViewMode {
 }
 
 class MeshMainViewModel(
-    private val repository: MeshRepository,
-    private val sessionManager: SessionManager
+    val repository: MeshRepository,
+    val sessionManager: SessionManager
 ) : ViewModel() {
 
     private val _currentTab = MutableStateFlow(
@@ -64,6 +64,18 @@ class MeshMainViewModel(
     private val _autoRefreshMinutes = MutableStateFlow(sessionManager.autoRefreshIntervalMinutes)
     val autoRefreshMinutes: StateFlow<Int> = _autoRefreshMinutes.asStateFlow()
 
+    private val _startTab = MutableStateFlow(sessionManager.startTab)
+    val startTab: StateFlow<String> = _startTab.asStateFlow()
+
+    private val _hapticFeedbackEnabled = MutableStateFlow(sessionManager.hapticFeedbackEnabled)
+    val hapticFeedbackEnabled: StateFlow<Boolean> = _hapticFeedbackEnabled.asStateFlow()
+
+    private val _hideCompletedHomework = MutableStateFlow(sessionManager.hideCompletedHomework)
+    val hideCompletedHomework: StateFlow<Boolean> = _hideCompletedHomework.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(sessionManager.themeMode)
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
     val studentProfile: StateFlow<StudentProfile> = repository.studentProfile
     val weekSchedule: StateFlow<Map<String, List<LessonScheduleItem>>> = repository.weekSchedule
     val scheduleToday: StateFlow<List<LessonScheduleItem>> = repository.scheduleToday
@@ -77,8 +89,77 @@ class MeshMainViewModel(
     val profileRewards: StateFlow<List<ProfileRewardItem>> = repository.profileRewards
     val works: StateFlow<List<WorkItem>> = repository.works
     val ratingInfo: StateFlow<RatingInfo> = repository.ratingInfo
+    val academicClassRanks: StateFlow<List<AcademicClassRankItem>> = repository.academicClassRanks
     val mealsBalance: StateFlow<MealsBalance> = repository.mealsBalance
     val attendance: StateFlow<AttendanceSummary> = repository.attendance
+    val periodsSchedules: StateFlow<List<PeriodScheduleItemDTO>> = repository.periodsSchedules
+    val vacationPeriods: StateFlow<List<VacationPeriodInfo>> = repository.vacationPeriods
+    val upcomingVacation: StateFlow<VacationPeriodInfo?> = repository.upcomingVacation
+    val portfolioAchievements: StateFlow<List<PortfolioAchievementItem>> = repository.portfolioAchievements
+    val isOffline: StateFlow<Boolean> = repository.isOffline
+
+    private val _selectedRatingSubjectId = MutableStateFlow<Long?>(null)
+    val selectedRatingSubjectId: StateFlow<Long?> = _selectedRatingSubjectId.asStateFlow()
+
+    private val _subjectAcademicRanks = MutableStateFlow<List<AcademicClassRankItem>>(emptyList())
+    val subjectAcademicRanks: StateFlow<List<AcademicClassRankItem>> = _subjectAcademicRanks.asStateFlow()
+
+    private val _isSubjectRankLoading = MutableStateFlow(false)
+    val isSubjectRankLoading: StateFlow<Boolean> = _isSubjectRankLoading.asStateFlow()
+
+    fun selectRatingSubject(subjectId: Long?) {
+        _selectedRatingSubjectId.value = subjectId
+        if (subjectId == null) {
+            _subjectAcademicRanks.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            _isSubjectRankLoading.value = true
+            try {
+                val list = repository.fetchSubjectClassRank(subjectId)
+                _subjectAcademicRanks.value = list
+            } finally {
+                _isSubjectRankLoading.value = false
+            }
+        }
+    }
+
+    private val _customFeedItems = MutableStateFlow<List<ProfileRewardItem>?>(null)
+    val customFeedItems: StateFlow<List<ProfileRewardItem>?> = _customFeedItems.asStateFlow()
+
+    private val _isFeedLoading = MutableStateFlow(false)
+    val isFeedLoading: StateFlow<Boolean> = _isFeedLoading.asStateFlow()
+
+    fun loadPersonalFeed() {
+        viewModelScope.launch {
+            _isFeedLoading.value = true
+            try {
+                val items = repository.fetchMyPersonalRewards()
+                _customFeedItems.value = items
+            } finally {
+                _isFeedLoading.value = false
+            }
+        }
+    }
+
+    fun loadPersonFeedByPid(pid: Long) {
+        viewModelScope.launch {
+            _isFeedLoading.value = true
+            try {
+                val received = repository.fetchFeedRewards(targetProfileId = pid, from = "ALL", to = "ME")
+                val sent = repository.fetchFeedRewards(targetProfileId = pid, from = "ME", to = "OTHERS")
+                val combined = (received + sent).distinctBy { it.profileRewardId.takeIf { id -> id > 0 } ?: it.id }
+                    .sortedByDescending { it.purchasedAt.orEmpty() }
+                _customFeedItems.value = combined
+            } finally {
+                _isFeedLoading.value = false
+            }
+        }
+    }
+
+    fun clearCustomFeed() {
+        _customFeedItems.value = null
+    }
 
     private val _showOnboardingGuide = MutableStateFlow(!sessionManager.isOnboardingCompleted)
     val showOnboardingGuide: StateFlow<Boolean> = _showOnboardingGuide.asStateFlow()
@@ -198,6 +279,26 @@ class MeshMainViewModel(
         _autoRefreshMinutes.value = minutes
     }
 
+    fun setStartTab(tabName: String) {
+        sessionManager.startTab = tabName
+        _startTab.value = tabName
+    }
+
+    fun toggleHapticFeedback(enabled: Boolean) {
+        sessionManager.hapticFeedbackEnabled = enabled
+        _hapticFeedbackEnabled.value = enabled
+    }
+
+    fun toggleHideCompletedHomework(enabled: Boolean) {
+        sessionManager.hideCompletedHomework = enabled
+        _hideCompletedHomework.value = enabled
+    }
+
+    fun setThemeMode(mode: String) {
+        sessionManager.themeMode = mode
+        _themeMode.value = mode
+    }
+
     fun unlockReward(id: String) {
         repository.unlockReward(id)
     }
@@ -271,6 +372,153 @@ class MeshMainViewModel(
             val success = repository.deleteAvatar()
             onResult(success)
         }
+    }
+
+    private val _isGiftSendActive = MutableStateFlow(false)
+    val isGiftSendActive: StateFlow<Boolean> = _isGiftSendActive.asStateFlow()
+
+    private val _selectedGiftForSend = MutableStateFlow<RewardItem?>(null)
+    val selectedGiftForSend: StateFlow<RewardItem?> = _selectedGiftForSend.asStateFlow()
+
+    private val _targetRecipientGamifId = MutableStateFlow<String?>(null)
+    val targetRecipientGamifId: StateFlow<String?> = _targetRecipientGamifId.asStateFlow()
+
+    fun openGiftSend(gift: RewardItem? = null, recipientGamifId: String? = null) {
+        _selectedGiftForSend.value = gift
+        _targetRecipientGamifId.value = recipientGamifId
+        _isGiftSendActive.value = true
+    }
+
+    fun closeGiftSend() {
+        _isGiftSendActive.value = false
+        _selectedGiftForSend.value = null
+        _targetRecipientGamifId.value = null
+    }
+
+    private val _selectedLessonForDetails = MutableStateFlow<LessonScheduleItem?>(null)
+    val selectedLessonForDetails: StateFlow<LessonScheduleItem?> = _selectedLessonForDetails.asStateFlow()
+
+    private val _isLessonDetailsLoading = MutableStateFlow(false)
+    val isLessonDetailsLoading: StateFlow<Boolean> = _isLessonDetailsLoading.asStateFlow()
+
+    private val _selectedMarkLesson = MutableStateFlow<LessonScheduleItem?>(null)
+    val selectedMarkLesson: StateFlow<LessonScheduleItem?> = _selectedMarkLesson.asStateFlow()
+
+    private val _markSubjectRanks = MutableStateFlow<List<AcademicClassRankItem>>(emptyList())
+    val markSubjectRanks: StateFlow<List<AcademicClassRankItem>> = _markSubjectRanks.asStateFlow()
+
+    private val _isMarkSubjectRanksLoading = MutableStateFlow(false)
+    val isMarkSubjectRanksLoading: StateFlow<Boolean> = _isMarkSubjectRanksLoading.asStateFlow()
+
+    fun openLessonDetails(lesson: LessonScheduleItem) {
+        _selectedLessonForDetails.value = lesson
+        val lessonIdLong = lesson.id.replace("ev_", "").substringBefore("_").toLongOrNull()
+        if (lessonIdLong != null && lessonIdLong > 0) {
+            viewModelScope.launch {
+                _isLessonDetailsLoading.value = true
+                val detailed = repository.fetchLessonDetails(lessonIdLong)
+                if (detailed != null) {
+                    _selectedLessonForDetails.value = lesson.copy(
+                        room = if (detailed.room.isNotBlank()) detailed.room else lesson.room,
+                        teacherName = if (detailed.teacherName.isNotBlank() && detailed.teacherName != "Учитель") detailed.teacherName else lesson.teacherName,
+                        homework = detailed.homework ?: lesson.homework,
+                        topic = detailed.topic ?: lesson.topic,
+                        mark = detailed.mark ?: lesson.mark,
+                        markWeight = if (detailed.mark != null) detailed.markWeight else lesson.markWeight,
+                        markComment = detailed.markComment ?: lesson.markComment,
+                        markControlForm = detailed.markControlForm ?: lesson.markControlForm,
+                        markCreatedAt = detailed.markCreatedAt ?: lesson.markCreatedAt,
+                        testMaterials = detailed.testMaterials
+                    )
+                }
+                _isLessonDetailsLoading.value = false
+            }
+        }
+    }
+
+    fun closeLessonDetails() {
+        _selectedLessonForDetails.value = null
+    }
+
+    fun openMarkDetails(lesson: LessonScheduleItem) {
+        _selectedMarkLesson.value = lesson
+        val subjId = lesson.subjectId.takeIf { it > 0 }
+            ?: subjectSummaries.value.find { it.subject.equals(lesson.subject, ignoreCase = true) }?.subjectId
+
+        viewModelScope.launch {
+            _isMarkSubjectRanksLoading.value = true
+            val ranks = repository.fetchSubjectClassRank(subjId)
+            _markSubjectRanks.value = ranks
+            _isMarkSubjectRanksLoading.value = false
+        }
+    }
+
+    fun openMarkDetails(mark: ru.mesh.expressive.data.model.MarkItem) {
+        val pseudoLesson = LessonScheduleItem(
+            id = mark.id,
+            subject = mark.subject,
+            subjectId = mark.subjectId,
+            mark = mark.value,
+            markWeight = mark.weight,
+            markComment = mark.comment,
+            markControlForm = mark.controlFormName,
+            markCreatedAt = mark.createdAt
+        )
+        openMarkDetails(pseudoLesson)
+    }
+
+    fun closeMarkDetails() {
+        _selectedMarkLesson.value = null
+        _markSubjectRanks.value = emptyList()
+    }
+
+    private val _selectedHomeworkForDetails = MutableStateFlow<ru.mesh.expressive.data.model.HomeworkItem?>(null)
+    val selectedHomeworkForDetails: StateFlow<ru.mesh.expressive.data.model.HomeworkItem?> = _selectedHomeworkForDetails.asStateFlow()
+
+    fun openHomeworkDetails(homework: ru.mesh.expressive.data.model.HomeworkItem) {
+        _selectedHomeworkForDetails.value = homework
+    }
+
+    fun closeHomeworkDetails() {
+        _selectedHomeworkForDetails.value = null
+    }
+
+    private val _isAttachmentUploading = MutableStateFlow(false)
+    val isAttachmentUploading: StateFlow<Boolean> = _isAttachmentUploading.asStateFlow()
+
+    fun uploadHomeworkAttachment(homeworkEntryStudentId: Long, fileUri: android.net.Uri, context: android.content.Context) {
+        viewModelScope.launch {
+            _isAttachmentUploading.value = true
+            repository.uploadHomeworkAttachment(homeworkEntryStudentId, fileUri, context)
+            _isAttachmentUploading.value = false
+            _selectedHomeworkForDetails.value = homeworkList.value.find { it.homeworkEntryStudentId == homeworkEntryStudentId }
+        }
+    }
+
+    fun deleteHomeworkAttachment(homeworkEntryStudentId: Long, fileId: Long) {
+        viewModelScope.launch {
+            repository.deleteHomeworkAttachment(homeworkEntryStudentId, fileId)
+            _selectedHomeworkForDetails.value = homeworkList.value.find { it.homeworkEntryStudentId == homeworkEntryStudentId }
+        }
+    }
+
+    private val _activeTestExecutionUrl = MutableStateFlow<String?>(null)
+    val activeTestExecutionUrl: StateFlow<String?> = _activeTestExecutionUrl.asStateFlow()
+
+    private val _activeTestExecutionTitle = MutableStateFlow<String?>(null)
+    val activeTestExecutionTitle: StateFlow<String?> = _activeTestExecutionTitle.asStateFlow()
+
+    fun openTestExecution(url: String, title: String = "Тестовое задание") {
+        _activeTestExecutionTitle.value = title
+        viewModelScope.launch {
+            val resolvedUrl = repository.resolveTestLaunchUrl(url)
+            _activeTestExecutionUrl.value = resolvedUrl
+        }
+    }
+
+    fun closeTestExecution() {
+        _activeTestExecutionUrl.value = null
+        _activeTestExecutionTitle.value = null
     }
 
     class Factory(

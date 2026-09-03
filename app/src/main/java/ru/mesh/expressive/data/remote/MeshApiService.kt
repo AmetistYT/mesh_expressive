@@ -44,6 +44,29 @@ data class RewardsSearchResponse(
     val items: List<RewardItem> = emptyList()
 )
 
+data class RewardsSearchRequestBody(
+    @SerializedName("pagination")
+    val pagination: RewardsPaginationDTO = RewardsPaginationDTO(),
+    @SerializedName("filters")
+    val filters: RewardsFiltersDTO = RewardsFiltersDTO()
+)
+
+data class RewardsPaginationDTO(
+    @SerializedName("pageNumber")
+    val pageNumber: Int = 1,
+    @SerializedName("pageSize")
+    val pageSize: Int = 50
+)
+
+data class RewardsFiltersDTO(
+    @SerializedName("rewardTypes")
+    val rewardTypes: List<String> = listOf("GIFT"),
+    @SerializedName("statuses")
+    val statuses: List<String> = listOf("ACTIVE"),
+    @SerializedName("isEmptyHidden")
+    val isEmptyHidden: Boolean = true
+)
+
 data class WebProfileResponse(
     @SerializedName("profile")
     val profile: WebUserProfile? = null,
@@ -376,6 +399,18 @@ interface MeshFamilyMobileApi {
         @Query("date") date: String
     ): Response<List<LessonScheduleItemResponseDTO>>
 
+    @GET("lesson_schedule_items/{lesson_id}")
+    suspend fun getLessonScheduleItemDetails(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("lesson_id") lessonId: Long,
+        @Query("student_id") studentId: Long,
+        @Query("person_id") personId: String,
+        @Query("type") type: String = "PLAN"
+    ): Response<LessonDetailDTO>
+
     @GET("homeworks/short")
     suspend fun getHomeworksShort(
         @Header("Authorization") token: String,
@@ -416,7 +451,7 @@ interface MeshFamilyMobileApi {
         @Query("student_id") studentId: Long,
         @Query("from") from: String,
         @Query("to") to: String
-    ): Response<List<MarkByDateItemDTO>>
+    ): Response<MarksResponseDTO>
 
     @GET("subject_marks/short")
     suspend fun getSubjectMarksShort(
@@ -426,6 +461,37 @@ interface MeshFamilyMobileApi {
         @Header("client-type") clientType: String = "diary-mobile",
         @Query("student_id") studentId: Long
     ): Response<SubjectMarksShortResponseDTO>
+
+    @GET("periods_schedules")
+    suspend fun getPeriodsSchedules(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Query("student_id") studentId: Long,
+        @Query("from") from: String,
+        @Query("to") to: String
+    ): Response<List<PeriodScheduleItemDTO>>
+
+    @Multipart
+    @POST("homeworks/{homework_entry_student_id}/attachment")
+    suspend fun uploadHomeworkAttachment(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Path("homework_entry_student_id") homeworkEntryStudentId: Long,
+        @Query("type") lessonType: String = "lesson",
+        @Part file: MultipartBody.Part
+    ): Response<okhttp3.ResponseBody>
+
+    @DELETE("homeworks/{homework_entry_student_id}/attachment/{file_id}")
+    suspend fun deleteHomeworkAttachment(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Path("homework_entry_student_id") homeworkEntryStudentId: Long,
+        @Path("file_id") fileId: Long
+    ): Response<okhttp3.ResponseBody>
 }
 
 interface MeshEventCalendarApi {
@@ -448,11 +514,12 @@ interface MeshRatingApi {
     suspend fun getClassRank(
         @Header("Authorization") token: String,
         @Header("X-Mes-Subsystem") subsystem: String = "familymp",
-        @Header("client-type") clientType: String = "mobile",
+        @Header("client-type") clientType: String = "diary-mobile",
         @Query("personId") personId: String,
         @Query("classUnitId") classUnitId: Long,
-        @Query("date") date: String
-    ): Response<RatingInfo>
+        @Query("date") date: String,
+        @Query("subjectId") subjectId: Long? = null
+    ): Response<List<ClassRankPersonItem>>
 
     @GET("rank/rankShort")
     suspend fun getRatingShort(
@@ -508,7 +575,8 @@ interface MeshGamificationApi {
         @Header("Authorization") token: String,
         @Header("Profile-id") profileId: Long,
         @Header("X-Mes-Subsystem") subsystem: String = "familymp",
-        @Header("client-type") clientType: String = "diary-mobile"
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Body request: RewardsSearchRequestBody = RewardsSearchRequestBody()
     ): Response<RewardsSearchResponse>
 
     @POST("persons/rating")
@@ -556,8 +624,10 @@ interface MeshGamificationApi {
         @Header("X-Mes-Subsystem") subsystem: String = "familymp",
         @Header("client-type") clientType: String = "diary-mobile",
         @Path("profileId") profileIdPath: String,
-        @Body request: Map<String, String> = emptyMap()
-    ): Response<List<ProfileRewardItem>>
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+        @Body request: ProfileRewardsRequestBody = ProfileRewardsRequestBody()
+    ): Response<ProfileRewardsResponse>
 }
 
 interface MeshMealsApi {
@@ -580,6 +650,51 @@ interface MeshMealsApi {
     ): Response<OrdersHistoryResponse>
 }
 
+data class AdditionalMaterialsRequest(
+    @SerializedName("materials") val materials: List<MaterialRequestItem>
+)
+
+data class MaterialRequestItem(
+    @SerializedName("uuid") val uuid: String,
+    @SerializedName("selected_mode") val selectedMode: String = "learn",
+    @SerializedName("purpose") val purpose: String = "lesson"
+)
+
+data class AdditionalMaterialsResponse(
+    @SerializedName("additional_materials") val additionalMaterials: List<AdditionalMaterialGroupWrapper>? = null
+)
+
+data class AdditionalMaterialGroupWrapper(
+    @SerializedName("purpose") val purpose: String? = null,
+    @SerializedName("material_groups") val materialGroups: List<MaterialGroupItem>? = null
+)
+
+data class MaterialGroupItem(
+    @SerializedName("selected_mode") val selectedMode: String? = null,
+    @SerializedName("materials") val materials: List<DetailedMaterialItem>? = null
+)
+
+data class DetailedMaterialItem(
+    @SerializedName("uuid") val uuid: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("type_name") val typeName: String? = null,
+    @SerializedName("urls") val urls: List<LessonMaterialUrlDTO>? = null,
+    @SerializedName("action_name") val actionName: String? = null
+)
+
+interface MeshMaterialsApi {
+    @POST("api/family/materials/v1/additional_materials")
+    suspend fun getAdditionalMaterials(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Header("x-mes-globalroleid") globalRoleId: String = "2",
+        @Body body: AdditionalMaterialsRequest
+    ): Response<AdditionalMaterialsResponse>
+}
+
 object MeshNetworkClient {
     private const val BASE_FAMILY_WEB = "https://school.mos.ru/api/family/web/v1/"
     private const val BASE_FAMILY_MOBILE = "https://school.mos.ru/api/family/mobile/v1/"
@@ -592,7 +707,7 @@ object MeshNetworkClient {
         level = HttpLoggingInterceptor.Level.BASIC
     }
 
-    private val okHttpClient = OkHttpClient.Builder()
+    val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(logging)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -682,4 +797,44 @@ object MeshNetworkClient {
             .build()
             .create(MeshAvatarApi::class.java)
     }
+
+    val materialsApi: MeshMaterialsApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://school.mos.ru/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(MeshMaterialsApi::class.java)
+    }
+
+    val portfolioApi: MeshPortfolioApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://school.mos.ru/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(MeshPortfolioApi::class.java)
+    }
+}
+
+interface MeshPortfolioApi {
+    @GET("api/portfolio/app/persons/{personId}/rewards/list")
+    suspend fun getRewardsList(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("personId") personGuid: String,
+        @Query("size") size: Int = 50
+    ): Response<PortfolioRewardResponse>
+
+    @GET("api/portfolio/app/persons/{personId}/events/list")
+    suspend fun getEventsList(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("personId") personGuid: String,
+        @Query("size") size: Int = 50
+    ): Response<PortfolioEventResponse>
 }

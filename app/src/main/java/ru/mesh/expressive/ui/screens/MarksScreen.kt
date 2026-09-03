@@ -39,6 +39,7 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
     val profile by viewModel.studentProfile.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val viewMode by viewModel.marksViewMode.collectAsState()
+    val showWeightedGpa by viewModel.showWeightedGpa.collectAsState()
     var showCalculatorDialog by remember { mutableStateOf(false) }
     var selectedSubjectForCalc by remember { mutableStateOf<SubjectSummary?>(null) }
 
@@ -48,6 +49,14 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
             .groupBy { it.date }
             .toList()
             .sortedByDescending { it.first }
+    }
+
+    val gpaLabel = if (showWeightedGpa) "Средневзвешенный балл" else "Средний балл (арифм.)"
+    val activeGpa = remember(subjectSummaries, profile.gpa, showWeightedGpa) {
+        if (subjectSummaries.isNotEmpty()) {
+            val avgs = subjectSummaries.map { it.getEffectiveAverage(showWeightedGpa) }.filter { it > 0.0 }
+            if (avgs.isNotEmpty()) avgs.average() else profile.gpa
+        } else profile.gpa
     }
 
     ExpressivePullToRefreshBox(
@@ -81,12 +90,12 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                             ) {
                                 Column {
                                     Text(
-                                        text = "Успеваемость",
+                                        text = gpaLabel,
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                     )
                                     Text(
-                                        text = if (profile.gpa > 0.0) "Средний балл: ${String.format("%.2f", profile.gpa)}" else "Средний балл: —",
+                                        text = if (activeGpa > 0.0) "Средний балл: ${String.format(java.util.Locale.US, "%.2f", activeGpa)}" else "Средний балл: —",
                                         style = MaterialTheme.typography.headlineMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -163,16 +172,22 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                     items(subjectSummaries) { subject ->
                         SubjectMarksCard(
                             subjectSummary = subject,
+                            showWeightedGpa = showWeightedGpa,
                             onOpenCalculator = {
                                 selectedSubjectForCalc = subject
                                 showCalculatorDialog = true
-                            }
+                            },
+                            onMarkClick = { viewModel.openMarkDetails(it) }
                         )
                     }
                 } else {
                     // Grouped by Date (по числу)
                     items(allMarksGroupedByDate) { (date, marks) ->
-                        DateMarksGroupCard(date = date, marks = marks)
+                        DateMarksGroupCard(
+                            date = date,
+                            marks = marks,
+                            onMarkClick = { viewModel.openMarkDetails(it) }
+                        )
                     }
                 }
             }
@@ -296,7 +311,8 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
 @Composable
 fun DateMarksGroupCard(
     date: String,
-    marks: List<MarkItem>
+    marks: List<MarkItem>,
+    onMarkClick: ((MarkItem) -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -320,7 +336,7 @@ fun DateMarksGroupCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = date,
+                        text = ru.mesh.expressive.util.DateUtils.formatRelativeDate(date),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -348,6 +364,7 @@ fun DateMarksGroupCard(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceContainer)
+                            .then(if (onMarkClick != null) Modifier.clickable { onMarkClick(mark) } else Modifier)
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -414,23 +431,27 @@ fun DateMarksGroupCard(
 @Composable
 fun SubjectMarksCard(
     subjectSummary: SubjectSummary,
-    onOpenCalculator: () -> Unit
+    showWeightedGpa: Boolean = true,
+    onOpenCalculator: () -> Unit,
+    onMarkClick: ((MarkItem) -> Unit)? = null
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
+    val effAvg = subjectSummary.getEffectiveAverage(showWeightedGpa)
+
     val markColor = when {
-        subjectSummary.averageMark <= 0.0 -> MaterialTheme.colorScheme.onSurfaceVariant
-        subjectSummary.averageMark >= 4.5 -> ScoreGreen
-        subjectSummary.averageMark >= 3.6 -> ScoreBlue
-        subjectSummary.averageMark >= 2.7 -> ScoreOrange
+        effAvg <= 0.0 -> MaterialTheme.colorScheme.onSurfaceVariant
+        effAvg >= 4.5 -> ScoreGreen
+        effAvg >= 3.6 -> ScoreBlue
+        effAvg >= 2.7 -> ScoreOrange
         else -> ScoreRed
     }
 
     val markBgColor = when {
-        subjectSummary.averageMark <= 0.0 -> MaterialTheme.colorScheme.surfaceVariant
-        subjectSummary.averageMark >= 4.5 -> ScoreGreenContainer
-        subjectSummary.averageMark >= 3.6 -> ScoreBlueContainer
-        subjectSummary.averageMark >= 2.7 -> ScoreOrangeContainer
+        effAvg <= 0.0 -> MaterialTheme.colorScheme.surfaceVariant
+        effAvg >= 4.5 -> ScoreGreenContainer
+        effAvg >= 3.6 -> ScoreBlueContainer
+        effAvg >= 2.7 -> ScoreOrangeContainer
         else -> ScoreRedContainer
     }
 
@@ -470,7 +491,7 @@ fun SubjectMarksCard(
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text(
-                            text = if (subjectSummary.averageMark > 0.0) String.format("%.2f", subjectSummary.averageMark) else "—",
+                            text = if (effAvg > 0.0) String.format(java.util.Locale.US, "%.2f", effAvg) else "—",
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
@@ -521,6 +542,7 @@ fun SubjectMarksCard(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(MaterialTheme.colorScheme.surfaceContainer)
+                                    .then(if (onMarkClick != null) Modifier.clickable { onMarkClick(mark) } else Modifier)
                                     .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -531,8 +553,9 @@ fun SubjectMarksCard(
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Medium
                                     )
+                                    val markTimeStr = if (!mark.createdAt.isNullOrBlank()) ru.mesh.expressive.util.DateUtils.formatRelativeDateTime(mark.createdAt) else ru.mesh.expressive.util.DateUtils.formatRelativeDate(mark.date)
                                     Text(
-                                        text = "Дата: ${mark.date}${if (mark.weight > 1.0) " • Вес ${mark.weight}" else ""}",
+                                        text = "$markTimeStr${if (mark.weight > 1.0) " • Вес ${mark.weight}" else ""}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

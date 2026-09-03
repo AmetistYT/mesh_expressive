@@ -2,48 +2,94 @@
 
 > **Современный, быстрый и абсолютно свободный от трекеров клиент Московской электронной школы (МЭШ) в дизайн-системе Material Design 3 Expressive.**
 >
-> *вайбкод*
+> *semi vibecoded by gemini*
 
 [![Android](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84.svg?style=flat)](https://www.android.com/)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg?style=flat)](https://kotlinlang.org/)
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material3_Expressive-4285F4.svg?style=flat)](https://developer.android.com/jetpack/compose)
 [![Zero Trackers](https://img.shields.io/badge/Trackers-0_(Pure)-00C853.svg?style=flat)](https://github.com/AmetistYT)
-[![Vibecoded](https://img.shields.io/badge/Style-вайбкод-purple.svg)](https://github.com/AmetistYT)
+[![Vibecoded](https://img.shields.io/badge/Style-semi_vibecoded_by_gemini-purple.svg)](https://github.com/AmetistYT)
+[![Version](https://img.shields.io/badge/Version-2.0.0-blue.svg)](https://github.com/AmetistYT/mesh_expressive/releases/tag/v2.0.0)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
-## Главные особенности и возможности
+## Главные особенности и функционал v2.0.0
 
-- **Авто-сдача заданий за звезды**: Мгновенная сдача всех доступных ЦДЗ и заданий со звездами в один клик через прямой API (`POST /works/{workId}/points`).
-- **0 трекеров и 100% приватность**: Полностью вырезаны все встроенные модули слежки официального клиента:
-  - `Yandex AppMetrica` (телеметрия кликов и действий)
-  - `Спутник МЭШ` (фоновый геотрекинг местоположения)
-  - `VK MyTracker` и `OK Tracer` (рекламные профили)
-  - `Sentry APM` и `Varioqub` (удаленные дампы и A/B конфиги)
-- **Material 3 Expressive & Monet**:
-  - Адаптивная динамическая тема под обои устройства (Material You).
-  - 7-лепестковые контурные формы кнопок и аватаров (`M3Cookie7Shape`).
-  - Волновые индикаторы прогресса и пружинная физика нажатий (`spring(dampingRatio = 0.6f)`).
-- **Москвёнок (Питание)**:
-  - Отображение точного баланса карты в реальном времени.
-  - Поддержка статуса дневного лимита («Не установлен» / сумма).
-  - Просмотр истории покупок и операций в буфете.
-- **Геймификация, Звезды и Рейтинг щедрости**:
-  - Актуальный баланс звезд (`balance`), уровень и опыт (`points / nextLevelXp`).
-  - **Рейтинг щедрости**: корректный расчет лидерборда класса по реально потраченным звездам (`spentPoints`).
-  - Автоматическая валидация статуса ежедневного подарка (+150 звезд).
-- **Удобная авторизация**:
-  - Вход через официальный шлюз `mos.ru` (SSO WebView).
-  - **Root-экстрактор**: автоматическое бесшовное извлечение активной сессии из официального приложения `ru.mes.dnevnik`.
-  - Ручной ввод и инспектор JWT-токена в настройках.
+### 1. Деанонимизация рейтинга класса и предметов («Деанонка»)
+- **Полное раскрытие анонимных участников**: в официальном приложении МЭШ рейтинг класса обезличен (ученики скрыты под обезличенными номерами без фамилий). В Mesh Expressive реализован алгоритм сопоставления связей: данные параллели, `contingentGuid`, `personId` и `gamificationId` кросс-матчатся с составом класса и событиями школьной ленты, в результате чего каждому скрытому месту в рейтинге возвращается реальное имя и фамилия одноклассника.
+- **Индивидуальный рейтинг по отдельным предметам**: можно переключаться между общим рейтингом класса и отдельными школьными предметами (Алгебра, Физика, Русский язык, Химия, Информатика и др.), чтобы видеть точные оценки, средние баллы и позиции каждого ученика по каждому предмету.
+- **Точные баллы и динамика**: расчет мест с неокругленными значениями, показ изменения позиции и балльного отрыва между учащимися.
+- **Инспектор профилей одноклассников**: карточка по клику на любого ученика в классе с отображением и быстрым копированием `Person ID` и `Gamification ID` в буфер обмена.
+
+### 2. Детализация уроков и точные даты
+- **Интерактивная шторка урока**: подробная информация о теме занятия, выданном домашнем задании, кабинете и учителе.
+- **Материалы ЦДЗ**: просмотр прикрепленных цифровых тестов и материалов прямо в карточке урока.
+- **Секундная точность временных меток**: точное время выставления оценок и дедлайнов ДЗ («Сегодня в 14:32:15», «Вчера в 09:12:00», «Позавчера»).
+- **Оптимизация жестов Android**: устранены пустые отступы под шторками на устройствах с жестовой навигацией.
+
+### 3. Встроенное решение тестов ЦДЗ (WebView)
+- **Прохождение тестов в приложении**: встроенный компонент `TestExecutionWebViewDialog` позволяет решать цифровые тесты и уроки без перехода в браузер.
+- **Прямая авторизация**: автоматическая бесшовная передача сессионных cookie и заголовков Bearer-токена с оптимизированным мобильным User-Agent.
+
+### 4. Решения и прикрепление файлов к ДЗ
+- **Загрузка решений на сервер**: отправка фото и файлов через официальный эндпоинт `POST api/family/web/v1/homeworks/{id}/attachment` (multipart/form-data).
+- **Системный пикер**: поддержка любых форматов через `GetContent()`, индикация загрузки и кнопка удаления через API.
+
+### 5. Каникулы и график учебных периодов
+- **Официальный производственный календарь**: подключение эндпоинта `periods_schedules`.
+- **Автоматический расчет**: продолжительность каникул в днях, подсчет оставшихся дней до старта и статус активности.
+- **Карточка отдыха**: блок `VacationsCard` внизу расписания и главного экрана с открытием шторки всех периодов учебного года.
+
+### 6. Портфолио достижений и Олимпиады
+- **Официальный API портфолио**: получение дипломов, грамот и мероприятий через `rewards/list` и `events/list` по person GUID.
+- **Категории и уровни**: фильтрация («Наука», «Гражданская активность», «Спорт», «Культура») с отображением уровня олимпиады (Школьный, Муниципальный, Региональный, Заключительный).
+
+### 7. Офлайн-режим и локальное кэширование
+- **Надежный кэш**: расписание, домашние задания, оценки, каникулы и портфолио сохраняются в `SessionManager`.
+- **Автономный запуск**: моментальное открытие данных при отсутствии связи, индикатор «Офлайн» в верхней панели.
+
+### 8. Оценки и продвинутый калькулятор
+- **Выбор формулы среднего балла**: переключатель между средневзвешенным (с учетом коэффициентов веса контрольных) и простым средним арифметическим.
+- **Калькулятор успеваемости**: расчет количества необходимых пятерок для достижения целевого балла.
+- **Группировка оценок**: просмотр оценок по предметам или по датам выставления.
+
+### 9. Питание «Москвёнок»
+- Актуальный баланс карты учащегося в реальном времени.
+- Проверка дневного лимита трат.
+- Подробная история покупок и операций в буфете.
+
+### 10. Посещаемость и ЕМИАС
+- Точное время входа и выхода из школы через турникеты.
+- Отображение активных медицинских справок и освобождений от физкультуры из системы ЕМИАС.
+
+### 11. Геймификация, Звезды и Подарки
+- **Авто-сдача заданий**: сдача тестов за звезды в один клик через `POST /works/{workId}/points`.
+- **Экран дарения (`GiftSendScreen`)**: отправка подарков одноклассникам или по произвольному Gamification ID.
+- **Живая лента школы**: просмотр врученных подарков и витрины наград.
+- **Режим бесконечных звезд**: локальный анлок каталога для разработчиков.
+
+### 12. Персонализация и настройки
+- **Темы оформления**: выбор темы («Системная», «Всегда тёмная», «Всегда светлая»).
+- **Monet Dynamic Colors**: адаптивные цвета интерфейса под обои рабочего стола (Material You).
+- **Стартовый экран**: настройка открываемого по умолчанию раздела при входе.
+- **Тактильный виброотклик (Haptic Feedback)**: мягкая отдача при переключении табов и нажатиях.
+- **Фильтры**: скрытие пустых дней в расписании и скрытие выполненных домашних заданий.
+- **Пружинная физика нажатий**: эффект упругости Material Expressive Bounce.
+
+### 13. Чистый стек и 0 трекеров
+Полностью удалены все скрытые модули слежки официального приложения:
+- `Yandex AppMetrica` (телеметрия кликов и действий)
+- `Спутник МЭШ` (фоновый геотрекинг местоположения)
+- `VK MyTracker` и `OK Tracer` (рекламные профили)
+- `Sentry APM` и `Varioqub` (удаленные дампы и A/B конфиги)
 
 ---
 
 ## Реверс-инжиниринг официального приложения
 
 В папке [`decompiled/`](decompiled/) опубликованы материалы анализа и декомпиляции официального клиента `ru.mes.dnevnik`:
-- [`decompiled/dnevnik_decompiled.js`](decompiled/dnevnik_decompiled.js) — полный декомпилированный JS-бандл React Native официального клиента (Hermes bytecode -> JS).
+- [`decompiled/dnevnik_decompiled.zip`](decompiled/dnevnik_decompiled.zip) — полный декомпилированный JS-бандл React Native официального клиента.
 - [`decompiled/dnevnik_strings.txt`](decompiled/dnevnik_strings.txt) — полный пул строковых констант и эндпоинтов.
 - [`decompiled/mesh_reverse_engineering_report.md`](decompiled/mesh_reverse_engineering_report.md) — подробный отчет об архитектуре API МЭШ, токенах и протоколах.
 
@@ -52,11 +98,13 @@
 | Сервис | Метод | URL / Эндпоинт | Обязательные заголовки |
 |---|---|---|---|
 | **Профиль ученика** | `GET` | `https://school.mos.ru/api/family/web/v1/profile` | `Auth-Token: <token>`, `Profile-Id: <id>`, `X-Mes-Subsystem: familyweb` |
-| **Звезды / Баланс** | `GET` | `https://school.mos.ru/api/gamification/v1/profiles?personId={contingentGuid}` | `Authorization: Bearer <token>`, `Profile-id: <id>`, `X-Mes-Subsystem: familymp`, `client-type: diary-mobile` |
-| **Ежедневный подарок**| `POST` | `https://school.mos.ru/api/gamification/v1/rewards/system_gift` | `Authorization: Bearer <token>`, `Profile-id: <id>`, `X-Mes-Subsystem: familymp`, `client-type: diary-mobile` |
-| **Москвёнок (Баланс)**| `GET` | `https://school.mos.ru/api/food/meals/v3/clients/balance?clientIds={"personId":"{contingentGuid}"}` | `Authorization: Bearer <token>`, `Profile-id: <id>`, `X-Mes-Subsystem: familymp`, `client-type: diary-mobile` |
-| **Рейтинг успеваемости**| `GET` | `https://school.mos.ru/api/ej/rating/v1/rank/rankShort?personId={contingentGuid}&beginDate={from}&endDate={to}` | `Authorization: Bearer <token>`, `X-Mes-Subsystem: familymp`, `client-type: mobile` |
-| **Посещаемость** | `GET` | `https://school.mos.ru/api/family/web/v1/attendance?student_id={id}&from={from}&to={to}` | `Auth-Token: <token>`, `Profile-Id: <id>`, `X-Mes-Subsystem: familyweb` |
+| **Рейтинг класса** | `GET` | `https://school.mos.ru/api/ej/rating/v1/rank/class?personId={guid}&classUnitId={id}&date={date}` | `Authorization: Bearer <token>`, `client-type: diary-mobile` |
+| **Каникулы и четверти** | `GET` | `https://school.mos.ru/api/family/mobile/v1/periods_schedules?student_id={id}&from={from}&to={to}` | `Auth-Token: <token>`, `Profile-Id: <id>`, `x-mes-subsystem: familymp` |
+| **Портфолио / Награды** | `GET` | `https://school.mos.ru/api/portfolio/app/persons/{guid}/rewards/list?size=50` | `Authorization: Bearer <token>`, `x-mes-subsystem: familymp` |
+| **Вложения к ДЗ** | `POST` | `https://school.mos.ru/api/family/web/v1/homeworks/{id}/attachment?type=lesson` | `Auth-Token: <token>`, `Profile-Id: <id>`, `multipart/form-data` |
+| **Москвёнок (Баланс)**| `GET` | `https://school.mos.ru/api/food/meals/v3/clients/balance?clientIds={"personId":"{guid}"}` | `Authorization: Bearer <token>`, `Profile-id: <id>`, `x-mes-subsystem: familymp` |
+| **Посещаемость** | `GET` | `https://school.mos.ru/api/family/web/v1/attendance?student_id={id}&from={from}&to={to}` | `Auth-Token: <token>`, `Profile-Id: <id>`, `x-mes-subsystem: familyweb` |
+| **Справки ЕМИАС** | `GET` | `https://school.mos.ru/api/ej/core/family/v1/emias_medical_recommendations` | `Auth-Token: <token>`, `Profile-Id: <id>`, `x-mes-subsystem: familyweb` |
 
 ---
 
@@ -64,7 +112,7 @@
 
 ### Требования:
 - JDK 17 или новее
-- Android SDK (API 35 / Build-Tools 35.0.0)
+- Android SDK (API 34-35 / Build-Tools 35.0.0)
 
 ### Команды для сборки:
 ```bash

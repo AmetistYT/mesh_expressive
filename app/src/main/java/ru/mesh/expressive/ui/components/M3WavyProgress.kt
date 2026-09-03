@@ -196,6 +196,9 @@ fun M3CircularWavyLoader(
     }
 }
 
+val LocalSpringPhysicsEnabled = androidx.compose.runtime.compositionLocalOf { true }
+val LocalHapticFeedbackEnabled = androidx.compose.runtime.compositionLocalOf { true }
+
 /**
  * Expressive Tactile Spring Bounce Click Modifier
  */
@@ -203,9 +206,10 @@ fun Modifier.expressiveBounceClick(
     scaleDown: Float = 0.94f,
     onClick: () -> Unit
 ): Modifier = composed {
+    val isSpringEnabled = LocalSpringPhysicsEnabled.current
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) scaleDown else 1f,
+        targetValue = if (isPressed && isSpringEnabled) scaleDown else 1f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
         label = "bounceScale"
     )
@@ -220,14 +224,18 @@ fun Modifier.expressiveBounceClick(
             indication = null,
             onClick = onClick
         )
-        .pointerInput(Unit) {
-            while (true) {
-                awaitPointerEventScope {
-                    awaitFirstDown(requireUnconsumed = false)
-                    isPressed = true
-                    waitForUpOrCancellation()
-                    isPressed = false
+        .then(
+            if (isSpringEnabled) {
+                Modifier.pointerInput(Unit) {
+                    while (true) {
+                        awaitPointerEventScope {
+                            awaitFirstDown(requireUnconsumed = false)
+                            isPressed = true
+                            waitForUpOrCancellation()
+                            isPressed = false
+                        }
+                    }
                 }
-            }
-        }
+            } else Modifier
+        )
 }

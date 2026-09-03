@@ -1,12 +1,14 @@
 package ru.mesh.expressive.data.model
 
 import com.google.gson.annotations.SerializedName
+import ru.mesh.expressive.data.remote.RewardsPaginationDTO
 
 /**
  * Профиль учащегося
  */
 data class StudentProfile(
     val id: String = "",
+    val profileId: Long = 0L,
     val personId: Long = 0L,
     val contingentGuid: String = "",
     val classUid: String = "",
@@ -28,6 +30,8 @@ data class StudentProfile(
 data class LessonScheduleItem(
     val id: String = "",
     val subject: String = "",
+    val subjectId: Long = 0L,
+    val date: String = "",
     val lessonNumber: Int = 1,
     val startTime: String = "",
     val endTime: String = "",
@@ -38,7 +42,67 @@ data class LessonScheduleItem(
     val attendanceStatus: AttendanceType = AttendanceType.PRESENT,
     val mark: Int? = null,
     val markWeight: Double = 1.0,
-    val homework: String? = null
+    val markComment: String? = null,
+    val markControlForm: String? = null,
+    val markCreatedAt: String? = null,
+    val homework: String? = null,
+    val topic: String? = null,
+    val testMaterials: List<LessonMaterialItem> = emptyList()
+)
+
+data class LessonMaterialItem(
+    val title: String,
+    val typeName: String = "Тест",
+    val url: String? = null
+)
+
+data class LessonDetailDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("subject_id") val subjectId: Long? = null,
+    @SerializedName("subject_name") val subjectName: String? = null,
+    @SerializedName("room_number") val roomNumber: String? = null,
+    @SerializedName("room_name") val roomName: String? = null,
+    @SerializedName("building_name") val buildingName: String? = null,
+    @SerializedName("teacher") val teacher: TeacherResponseDTO? = null,
+    @SerializedName("marks") val marks: List<LessonDetailMarkDTO>? = null,
+    @SerializedName("lesson_homeworks") val lessonHomeworks: List<LessonDetailHomeworkDTO>? = null,
+    @SerializedName("details") val details: LessonDetailInnerDTO? = null
+)
+
+data class LessonDetailInnerDTO(
+    @SerializedName("lesson_topic") val lessonTopic: String? = null,
+    @SerializedName("additional_materials") val additionalMaterials: List<LessonMaterialDTO>? = null
+)
+
+data class LessonDetailHomeworkDTO(
+    @SerializedName("homework") val homework: String? = null,
+    @SerializedName("homework_entry_student_id") val homeworkEntryStudentId: Long? = null,
+    @SerializedName("is_done") val isDone: Boolean? = null
+)
+
+data class LessonDetailMarkDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("value") val value: String? = null,
+    @SerializedName("weight") val weight: Double? = 1.0,
+    @SerializedName("comment") val comment: String? = null,
+    @SerializedName("control_form_name") val controlFormName: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null
+)
+
+data class LessonMaterialDTO(
+    @SerializedName("uuid") val uuid: String? = null,
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("type_name") val typeName: String? = null,
+    @SerializedName("action_name") val actionName: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("urls") val urls: List<LessonMaterialUrlDTO>? = null
+)
+
+data class LessonMaterialUrlDTO(
+    @SerializedName("url") val url: String? = null,
+    @SerializedName("type") val type: String? = null
 )
 
 // ======================== Mobile API DTOs ========================
@@ -86,21 +150,37 @@ data class SimpleMarkResponseDTO(
     @SerializedName("created_at") val createdAt: String? = null
 )
 
+data class MarksResponseDTO(
+    @SerializedName("payload") val payload: List<MarkByDateItemDTO>? = null
+)
+
 data class HomeworksShortResponseDTO(
     @SerializedName("payload") val payload: List<HomeworksShortItemDTO>? = null
 )
 
+data class HomeworkAttachmentDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("file_id") val fileId: Long? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("file_name") val fileName: String? = null,
+    @SerializedName("link") val link: String? = null,
+    @SerializedName("url") val url: String? = null
+)
+
 data class HomeworksShortItemDTO(
     @SerializedName("homework_entry_student_id") val homeworkEntryStudentId: Long? = null,
+    @SerializedName("lesson_id") val lessonId: Long? = null,
     @SerializedName("subject_id") val subjectId: Long? = null,
     @SerializedName("subject_name") val subjectName: String? = null,
     @SerializedName("description") val description: String? = null,
     @SerializedName("date") val date: String? = null,
     @SerializedName("date_assigned_on") val dateAssignedOn: String? = null,
+    @SerializedName("lesson_date_time") val lessonDateTime: String? = null,
     @SerializedName("is_done") val isDone: Boolean? = null,
     @SerializedName("materials_amount") val materialsAmount: com.google.gson.JsonElement? = null,
     @SerializedName("has_written_answer") val hasWrittenAnswer: Boolean? = null,
-    @SerializedName("type") val type: String? = null
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("attachments") val attachments: List<HomeworkAttachmentDTO>? = null
 )
 
 // ======================== EventCalendar API DTOs ========================
@@ -183,6 +263,7 @@ data class MarkByDateItemDTO(
     @SerializedName("subject_id") val subjectId: Long? = null,
     @SerializedName("control_form_name") val controlFormName: String? = null,
     @SerializedName("comment") val comment: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
     @SerializedName("is_exam") val isExam: Boolean? = null
 )
 
@@ -193,15 +274,27 @@ enum class AttendanceType {
 /**
  * Домашнее задание
  */
+data class HomeworkAttachmentItem(
+    val id: Long? = null,
+    val fileId: Long? = null,
+    val name: String = "",
+    val url: String = ""
+)
+
 data class HomeworkItem(
     val id: String = "",
+    val homeworkEntryStudentId: Long? = null,
+    val lessonId: Long? = null,
     val subject: String = "",
+    val subjectId: Long = 0L,
     val description: String = "",
     val date: String = "",
     val dueDate: String = "",
     var isDone: Boolean = false,
     val hasDigitalTest: Boolean = false,
-    val digitalTestUrl: String? = null
+    val digitalTestUrl: String? = null,
+    val createdAt: String? = null,
+    val attachments: List<HomeworkAttachmentItem> = emptyList()
 )
 
 /**
@@ -210,11 +303,15 @@ data class HomeworkItem(
 data class MarkItem(
     val id: String = "",
     val subject: String = "",
+    val subjectId: Long = 0L,
     val value: Int = 5,
     val weight: Double = 1.0,
     val date: String = "",
     val topic: String = "",
-    val isExam: Boolean = false
+    val isExam: Boolean = false,
+    val controlFormName: String? = null,
+    val comment: String? = null,
+    val createdAt: String? = null
 )
 
 /**
@@ -222,11 +319,24 @@ data class MarkItem(
  */
 data class SubjectSummary(
     val subject: String = "",
+    val subjectId: Long = 0L,
     val averageMark: Double = 0.0,
     val marks: List<MarkItem> = emptyList(),
     val targetMark: Double = 4.60,
     val teacher: String = "Учитель предмета"
-)
+) {
+    fun getEffectiveAverage(showWeighted: Boolean): Double {
+        if (marks.isEmpty()) return averageMark
+        return if (showWeighted) {
+            val totalWeight = marks.sumOf { it.weight }
+            if (totalWeight > 0.0) {
+                marks.sumOf { it.value * it.weight } / totalWeight
+            } else averageMark
+        } else {
+            marks.map { it.value }.average()
+        }
+    }
+}
 
 /**
  * Геймификация: Профиль и звезды
@@ -237,6 +347,12 @@ data class GamificationProfile(
 
     @SerializedName("gamificationId")
     val gamificationId: String? = null,
+
+    @SerializedName("firstName")
+    val firstName: String? = null,
+
+    @SerializedName("lastName")
+    val lastName: String? = null,
 
     @SerializedName("balance")
     val coinsCount: Int = 0,
@@ -264,10 +380,12 @@ data class GamificationProfile(
 data class ClassmateItem(
     val profileId: Long = 0L,
     val gamificationId: String = "",
+    val contingentGuid: String = "",
     val firstName: String = "",
     val lastName: String = "",
     val rank: Int = 0,
     val spentStars: Int = 0,
+    val averageMark: Double = 0.0,
     val isBirthdayToday: Boolean = false,
     val isCurrentUser: Boolean = false
 )
@@ -277,12 +395,56 @@ data class ClassmateItem(
  */
 data class PersonsRatingRequestBody(
     @SerializedName("filters")
-    val filters: ClassUidFilter
+    val filters: ClassUidFilter,
+    @SerializedName("pagination")
+    val pagination: RewardsPaginationDTO = RewardsPaginationDTO(pageNumber = 1, pageSize = 999),
+    @SerializedName("sorting")
+    val sorting: ProfileRewardsSortingDTO = ProfileRewardsSortingDTO(orderBy = "rating", direction = "ASC")
 )
 
 data class ClassUidFilter(
     @SerializedName("classUid")
-    val classUid: String
+    val classUid: String,
+    @SerializedName("startedAt")
+    val startedAt: String? = null,
+    @SerializedName("endedAt")
+    val endedAt: String? = null
+)
+
+data class ClassRankPersonItem(
+    @SerializedName("personId")
+    val personId: String? = null,
+    @SerializedName("imageId")
+    val imageId: Int? = null,
+    @SerializedName("rank")
+    val rank: ClassRankDetail? = null
+)
+
+data class AcademicClassRankItem(
+    val rankPlace: Int = 0,
+    val averageMark: Double = 0.0,
+    val rankStatus: String = "stable",
+    val isCurrentUser: Boolean = false,
+    val personId: String = "",
+    val imageId: Int? = null,
+    val displayName: String = "",
+    val gamificationId: String = "",
+    val profileId: Long = 0L
+)
+
+data class ClassRankDetail(
+    @SerializedName("rankPlace")
+    val rankPlace: Int? = null,
+    @SerializedName("rankPlace30")
+    val rankPlace30: Int? = null,
+    @SerializedName("averageMarkFive")
+    val averageMarkFive: Double? = null,
+    @SerializedName("averageMarkFive30")
+    val averageMarkFive30: Double? = null,
+    @SerializedName("rankStatus")
+    val rankStatus: String? = null,
+    @SerializedName("rankStatus30")
+    val rankStatus30: String? = null
 )
 
 data class PersonsRatingResponse(
@@ -384,6 +546,34 @@ data class RewardItem(
     @SerializedName("isUnlocked")
     val isUnlocked: Boolean = false
 )
+
+data class ProfileRewardsRequestBody(
+    @SerializedName("pagination")
+    val pagination: RewardsPaginationDTO = RewardsPaginationDTO(pageNumber = 1, pageSize = 50),
+    @SerializedName("sorting")
+    val sorting: ProfileRewardsSortingDTO = ProfileRewardsSortingDTO()
+)
+
+data class ProfileRewardsSortingDTO(
+    @SerializedName("orderBy")
+    val orderBy: String = "purchasedAt",
+    @SerializedName("direction")
+    val direction: String = "DESC"
+)
+
+data class ProfileRewardsResponse(
+    @SerializedName("data")
+    val data: List<ProfileRewardItem>? = null,
+    @SerializedName("content")
+    val content: List<ProfileRewardItem>? = null,
+    @SerializedName("items")
+    val rawItems: List<ProfileRewardItem>? = null,
+    @SerializedName("pagination")
+    val pagination: RewardsPaginationDTO? = null
+) {
+    val items: List<ProfileRewardItem>
+        get() = data ?: content ?: rawItems ?: emptyList()
+}
 
 data class ProfileRewardItem(
     @SerializedName("id")
@@ -518,4 +708,100 @@ data class EmiasRecord(
     val physicalCultureExemptionUntil: String = "",
     @SerializedName("status")
     val status: String = "Действительна"
+)
+
+object MarkDateFormatter {
+    fun formatDateTime(isoDateStr: String?): String {
+        if (isoDateStr.isNullOrBlank()) return ""
+        return try {
+            val clean = isoDateStr.substringBefore("+").substringBefore("Z").replace(" ", "T")
+            val parts = clean.split("T")
+            val datePart = parts[0]
+            val timePart = if (parts.size > 1) parts[1] else "00:00:00"
+
+            val timeSubparts = timePart.split(":")
+            val hours = timeSubparts.getOrNull(0) ?: "00"
+            val minutes = timeSubparts.getOrNull(1) ?: "00"
+            val seconds = timeSubparts.getOrNull(2) ?: "00"
+
+            val dateParser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            val parsedDate = dateParser.parse(datePart)
+            val dateFormatted = if (parsedDate != null) {
+                java.text.SimpleDateFormat("d MMMM yyyy", java.util.Locale("ru")).format(parsedDate)
+            } else datePart
+
+            if (seconds == "00") {
+                "$dateFormatted, $hours:$minutes"
+            } else {
+                "$dateFormatted, $hours:$minutes:$seconds"
+            }
+        } catch (_: Exception) {
+            isoDateStr
+        }
+    }
+}
+
+// ======================== Periods & Vacations ========================
+
+data class PeriodScheduleItemDTO(
+    @SerializedName("date") val date: String = "",
+    @SerializedName("type") val type: String = "workday", // "workday", "vacation", "holiday"
+    @SerializedName("title") val title: String = ""
+)
+
+data class VacationPeriodInfo(
+    val title: String,
+    val startDate: String,
+    val endDate: String,
+    val daysTotal: Int,
+    val isCurrent: Boolean = false,
+    val isUpcoming: Boolean = false,
+    val daysUntilStart: Int? = null
+)
+
+// ======================== Portfolio & Olympiads ========================
+
+data class PortfolioRewardResponse(
+    @SerializedName("result") val result: String? = null,
+    @SerializedName("data") val data: List<PortfolioRewardDTO>? = null
+)
+
+data class PortfolioRewardDTO(
+    @SerializedName("id") val id: Long = 0L,
+    @SerializedName("name") val name: String = "",
+    @SerializedName("date") val date: String? = null,
+    @SerializedName("category") val category: PortfolioNamedItemDTO? = null,
+    @SerializedName("levelReward") val levelReward: PortfolioNamedItemDTO? = null,
+    @SerializedName("rewardType") val rewardType: PortfolioNamedItemDTO? = null,
+    @SerializedName("entityId") val entityId: String? = null
+)
+
+data class PortfolioEventResponse(
+    @SerializedName("result") val result: String? = null,
+    @SerializedName("data") val data: List<PortfolioEventDTO>? = null
+)
+
+data class PortfolioEventDTO(
+    @SerializedName("id") val id: Long = 0L,
+    @SerializedName("name") val name: String = "",
+    @SerializedName("startDate") val startDate: String? = null,
+    @SerializedName("category") val category: PortfolioNamedItemDTO? = null,
+    @SerializedName("levelEvent") val levelEvent: PortfolioNamedItemDTO? = null,
+    @SerializedName("organizators") val organizators: String? = null
+)
+
+data class PortfolioNamedItemDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("code") val code: Int? = null,
+    @SerializedName("value") val value: String? = null
+)
+
+data class PortfolioAchievementItem(
+    val id: Long = 0L,
+    val title: String = "",
+    val category: String = "Достижение",
+    val level: String = "Школьный",
+    val type: String = "Награда",
+    val date: String = "",
+    val organization: String = ""
 )

@@ -3,9 +3,15 @@ package ru.mesh.expressive.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -17,174 +23,469 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.mesh.expressive.ui.components.ExpressiveEmptyState
+import ru.mesh.expressive.ui.components.ExpressivePullToRefreshBox
 import ru.mesh.expressive.ui.theme.*
 import ru.mesh.expressive.ui.viewmodel.MeshMainViewModel
+import java.util.Locale
 
 @Composable
 fun RatingScreen(viewModel: MeshMainViewModel) {
     val rating by viewModel.ratingInfo.collectAsState()
+    val academicRanks by viewModel.academicClassRanks.collectAsState()
+    val classmates by viewModel.classmates.collectAsState()
     val profile by viewModel.studentProfile.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
+    val subjectSummaries by viewModel.subjectSummaries.collectAsState()
+    val selectedRatingSubjectId by viewModel.selectedRatingSubjectId.collectAsState()
+    val subjectAcademicRanks by viewModel.subjectAcademicRanks.collectAsState()
+    val isSubjectRankLoading by viewModel.isSubjectRankLoading.collectAsState()
+
+    val currentRanks = if (selectedRatingSubjectId != null) subjectAcademicRanks else academicRanks
+
+    val unratedStudents = androidx.compose.runtime.remember(classmates, currentRanks) {
+        val ratedPids = currentRanks.map { it.profileId }.filter { it > 0 }.toSet()
+        val ratedGamifs = currentRanks.map { it.gamificationId }.filter { it.isNotBlank() }.toSet()
+        classmates.filter { it.profileId !in ratedPids && it.gamificationId !in ratedGamifs && !it.isCurrentUser }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (academicRanks.isEmpty()) {
+            viewModel.refreshData()
+        }
+    }
+
+    ExpressivePullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { viewModel.refreshData() },
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Hero Rating Card
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ExpressiveHeroShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "Рейтинг учащегося",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                            )
-                            Text(
-                                text = if (rating.classRank > 0) "${rating.classRank} место в классе" else "Рейтинг не рассчитан",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(M3Cookie7Shape(7))
-                                .background(StarGold),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.EmojiEvents,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(30.dp)
-                            )
-                        }
-                    }
-
-                    if (rating.classRank > 0) {
-                        Spacer(modifier = Modifier.height(14.dp))
-
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
+        ) {
+            // 1. Hero Rating Card
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveHeroShape,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Surface(
-                                shape = PillShape,
-                                color = MaterialTheme.colorScheme.surface
-                            ) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Параллель: ${rating.parallelRank} из ${rating.totalInParallel}",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    text = "Рейтинг учащегося",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                                Text(
+                                    text = if (rating.classRank > 0) "${rating.classRank} место в классе" else "Рейтинг не рассчитан",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "Всего в рейтинге класса: ${if (academicRanks.isNotEmpty()) academicRanks.size else rating.totalInClass} учеников",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                 )
                             }
 
-                            Surface(
-                                shape = PillShape,
-                                color = ScoreGreenContainer
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(M3Cookie7Shape(7))
+                                    .background(StarGold),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "Баллы: ${rating.score}",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ScoreGreen
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+                        }
+
+                        if (rating.classRank > 0) {
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                val avgMarkFormatted = String.format(Locale.US, "%.2f", rating.score / 20.0)
+                                Surface(
+                                    shape = PillShape,
+                                    color = ScoreGreenContainer
+                                ) {
+                                    Text(
+                                        text = "Средний балл: $avgMarkFormatted",
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ScoreGreen
+                                    )
+                                }
+
+                                Surface(
+                                    shape = PillShape,
+                                    color = MaterialTheme.colorScheme.surface
+                                ) {
+                                    val statusText = if (rating.rankChange > 0) "Динамика: ▲" else if (rating.rankChange < 0) "Динамика: ▼" else "Динамика: —"
+                                    val statusColor = if (rating.rankChange > 0) ScoreGreen else if (rating.rankChange < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                    Text(
+                                        text = statusText,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = statusColor
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Subject Filter Row
+            if (subjectSummaries.isNotEmpty()) {
+                item {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                        Text(
+                            text = "Фильтр по предмету",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            item {
+                                FilterChip(
+                                    selected = selectedRatingSubjectId == null,
+                                    onClick = { viewModel.selectRatingSubject(null) },
+                                    label = { Text("Все предметы") },
+                                    shape = PillShape
+                                )
+                            }
+                            items(subjectSummaries, key = { it.subjectId }) { subj ->
+                                FilterChip(
+                                    selected = selectedRatingSubjectId == subj.subjectId,
+                                    onClick = { viewModel.selectRatingSubject(subj.subjectId) },
+                                    label = { Text(subj.subject) },
+                                    shape = PillShape
                                 )
                             }
                         }
                     }
                 }
             }
-        }
 
-        // Leaderboard / Empty state
-        if (rating.classRank == 0) {
-            item {
-                ExpressiveEmptyState(
-                    title = "Здесь ничего нет",
-                    subtitle = "Рейтинг успеваемости на текущий момент не сформирован сервером",
-                    icon = Icons.Default.EmojiEvents
-                )
-            }
-        } else {
-            item {
-                Text(
-                    text = "Ваша позиция в классе",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveCardShape,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Row(
+            // 3. Leaderboard List
+            if (isSubjectRankLoading) {
+                item {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(48.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = StarGold,
-                                modifier = Modifier.size(36.dp)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(36.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 3.dp
+                        )
+                    }
+                }
+            } else if (currentRanks.isEmpty()) {
+                item {
+                    if (selectedRatingSubjectId != null) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveCardShape,
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "${rating.classRank}",
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
                                 Text(
-                                    text = "${profile.lastName} ${profile.firstName} (Вы)",
+                                    text = "Пока нет оценок",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "${profile.className} • ${profile.schoolName}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    text = "По выбранному предмету в 1 четверти ещё не выставлено оценок ни одному ученику класса.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-
-                        Text(
-                            text = "${rating.score} б.",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = StarGold
+                    } else if (isRefreshing) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 3.dp
+                            )
+                        }
+                    } else {
+                        ExpressiveEmptyState(
+                            title = "Рейтинг не сформирован",
+                            subtitle = "Сервер МЭШ ещё не рассчитал рейтинг успеваемости для вашего класса",
+                            icon = Icons.Default.EmojiEvents
                         )
+                    }
+                }
+            } else {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        val activeSubjName = subjectSummaries.find { it.subjectId == selectedRatingSubjectId }?.subject
+                        Text(
+                            text = if (activeSubjName != null) "Рейтинг: $activeSubjName" else "Места в классе (Общий)",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = PillShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                text = "${currentRanks.size} учеников",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                itemsIndexed(currentRanks) { index, rankItem ->
+                    val isMe = rankItem.isCurrentUser
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressiveCardShape,
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = when (rankItem.rankPlace) {
+                                        1 -> StarGold
+                                        2 -> Color(0xFFC0C0C0)
+                                        3 -> Color(0xFFCD7F32)
+                                        else -> if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "${rankItem.rankPlace}",
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (rankItem.rankPlace <= 3 || isMe) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column {
+                                    Text(
+                                        text = if (isMe) "${profile.lastName} ${profile.firstName} (Вы)" else rankItem.displayName.ifBlank { "Ученик ${index + 1}" },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = if (isMe) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (rankItem.gamificationId.isNotBlank()) {
+                                        Text(
+                                            text = "ID: ${rankItem.gamificationId}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        val statusIcon = when (rankItem.rankStatus.lowercase()) {
+                                            "up" -> Icons.Default.ArrowUpward
+                                            "down" -> Icons.Default.ArrowDownward
+                                            else -> Icons.Default.Remove
+                                        }
+                                        val statusColor = when (rankItem.rankStatus.lowercase()) {
+                                            "up" -> ScoreGreen
+                                            "down" -> MaterialTheme.colorScheme.error
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        }
+                                        Icon(
+                                            imageVector = statusIcon,
+                                            contentDescription = null,
+                                            tint = statusColor,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = when (rankItem.rankStatus.lowercase()) {
+                                                "up" -> "Поднялся"
+                                                "down" -> "Опустился"
+                                                else -> "Без изменений"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = statusColor
+                                        )
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                shape = PillShape,
+                                color = if (rankItem.averageMark >= 4.5) ScoreGreenContainer else MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                val markFormatted = String.format(Locale.US, "%.2f", rankItem.averageMark)
+                                Text(
+                                    text = markFormatted,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (rankItem.averageMark >= 4.5) ScoreGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (unratedStudents.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Пока без оценок в четверти",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Surface(
+                                shape = PillShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = "${unratedStudents.size} уч.",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    items(unratedStudents, key = { it.profileId }) { cm ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveCardShape,
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = "—",
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column {
+                                        Text(
+                                            text = "${cm.firstName} ${cm.lastName}".trim(),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "ID: ${cm.gamificationId} • Не аттестован(а)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = PillShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = "—",
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

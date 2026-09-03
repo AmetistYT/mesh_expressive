@@ -1,20 +1,28 @@
 package ru.mesh.expressive.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import ru.mesh.expressive.ui.components.expressiveBounceClick
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ru.mesh.expressive.data.model.ClassmateItem
 import ru.mesh.expressive.ui.components.ExpressiveEmptyState
 import ru.mesh.expressive.ui.components.ExpressivePullToRefreshBox
 import ru.mesh.expressive.ui.theme.*
@@ -28,6 +36,7 @@ fun ClassmatesScreen(viewModel: MeshMainViewModel) {
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
+    var selectedClassmateForModal by remember { mutableStateOf<ClassmateItem?>(null) }
 
     val filteredList = remember(classmates, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -237,7 +246,9 @@ fun ClassmatesScreen(viewModel: MeshMainViewModel) {
             } else {
                 items(filteredList, key = { it.profileId }) { classmate ->
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedClassmateForModal = classmate },
                         shape = ExpressiveCardShape,
                         colors = CardDefaults.cardColors(
                             containerColor = if (classmate.isCurrentUser)
@@ -257,27 +268,6 @@ fun ClassmatesScreen(viewModel: MeshMainViewModel) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = when (classmate.rank) {
-                                        1 -> StarGold
-                                        2 -> Color(0xFFC0C0C0)
-                                        3 -> Color(0xFFCD7F32)
-                                        else -> if (classmate.isCurrentUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-                                    },
-                                    modifier = Modifier.size(38.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = "${classmate.rank}",
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (classmate.rank <= 3 || classmate.isCurrentUser) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(14.dp))
-
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
@@ -305,28 +295,204 @@ fun ClassmatesScreen(viewModel: MeshMainViewModel) {
                                 }
                             }
 
-                            Column(horizontalAlignment = Alignment.End) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "${classmate.spentStars}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = StarGold
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = null,
-                                        tint = StarGold,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Text(
-                                    text = "потрачено",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (classmate.isCurrentUser) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = if (classmate.isCurrentUser) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (selectedClassmateForModal != null) {
+        ClassmateDetailBottomSheet(
+            classmate = selectedClassmateForModal!!,
+            onDismiss = { selectedClassmateForModal = null }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ClassmateDetailBottomSheet(
+    classmate: ClassmateItem,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        windowInsets = WindowInsets(0, 0, 0, 0),
+        shape = ExpressiveCardShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            // Header without avatars or numbers
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "${classmate.firstName} ${classmate.lastName}${if (classmate.isCurrentUser) " (Вы)" else ""}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Идентификаторы профиля",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 1. Person ID (GUID)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveCardShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Person ID (GUID)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = classmate.contingentGuid.ifBlank { "Не указан" },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    if (classmate.contingentGuid.isNotBlank()) {
+                        IconButton(
+                            onClick = {
+                                clipboardManager.setText(AnnotatedString(classmate.contingentGuid))
+                                Toast.makeText(context, "Person ID скопирован", Toast.LENGTH_SHORT).show()
                             }
+                        ) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "Копировать Person ID",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 2. Gamification ID
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveCardShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Gamification ID",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = classmate.gamificationId.ifBlank { "Не указан" },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    if (classmate.gamificationId.isNotBlank()) {
+                        IconButton(
+                            onClick = {
+                                clipboardManager.setText(AnnotatedString(classmate.gamificationId))
+                                Toast.makeText(context, "Gamification ID скопирован", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "Копировать Gamification ID",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (classmate.profileId > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                // 3. Profile ID
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveCardShape,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Profile ID",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "${classmate.profileId}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                clipboardManager.setText(AnnotatedString("${classmate.profileId}"))
+                                Toast.makeText(context, "Profile ID скопирован", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "Копировать Profile ID",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
                 }

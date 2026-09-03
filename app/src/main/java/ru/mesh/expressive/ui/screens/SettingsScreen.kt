@@ -55,6 +55,10 @@ fun SettingsScreen(
     val autoRefreshMinutes by viewModel.autoRefreshMinutes.collectAsState()
     val gamification by viewModel.gamificationProfile.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
+    val startTab by viewModel.startTab.collectAsState()
+    val hapticFeedbackEnabled by viewModel.hapticFeedbackEnabled.collectAsState()
+    val hideCompletedHomework by viewModel.hideCompletedHomework.collectAsState()
 
     var showTokenDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
@@ -304,6 +308,36 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Theme Mode Selector
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.DarkMode, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text("Тема оформления", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text("Светлый, тёмный или системный режим", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("SYSTEM" to "Системная", "DARK" to "Тёмная", "LIGHT" to "Светлая").forEach { (mode, title) ->
+                                val isSelected = themeMode == mode
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.setThemeMode(mode) },
+                                    label = { Text(title) },
+                                    shape = PillShape,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
                     // Monet Dynamic Theme
                     SettingsToggleRow(
                         icon = Icons.Default.Palette,
@@ -326,6 +360,85 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                    // Haptic Feedback
+                    SettingsToggleRow(
+                        icon = Icons.Default.Vibration,
+                        title = "Тактильный отклик (Вибрация)",
+                        subtitle = "Мягкий виброотклик при переключении экранов и действий",
+                        isChecked = hapticFeedbackEnabled,
+                        onCheckedChange = { viewModel.toggleHapticFeedback(it) }
+                    )
+                }
+            }
+        }
+
+        // Section: Навигация и стартовый экран
+        item {
+            Text(
+                text = "Навигация и экран запуска",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveCardShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text("Стартовый экран", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text("Какой раздел открывать первым при входе в приложение", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(
+                                "DASHBOARD" to "Главная",
+                                "SCHEDULE" to "Расписание",
+                                "HOMEWORK" to "Задания",
+                                "MARKS" to "Оценки"
+                            ).forEach { (tabKey, tabTitle) ->
+                                val isSelected = startTab == tabKey
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.setStartTab(tabKey) },
+                                    label = { Text(tabTitle, fontSize = 12.sp) },
+                                    shape = PillShape,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section: Расписание и Домашние задания
+        item {
+            Text(
+                text = "Расписание и Задания",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveCardShape,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     // Compact Schedule
                     SettingsToggleRow(
                         icon = Icons.Default.ViewAgenda,
@@ -341,23 +454,20 @@ fun SettingsScreen(
                     SettingsToggleRow(
                         icon = Icons.Default.EventBusy,
                         title = "Скрывать пустые дни",
-                        subtitle = "Не показывать карточки дней без запланированных уроков",
+                        subtitle = "Не показывать в полоске дни без запланированных уроков",
                         isChecked = hideEmptyScheduleDays,
                         onCheckedChange = { viewModel.toggleHideEmptyScheduleDays(it) }
                     )
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                    // Replay Onboarding Tour
-                    SettingsActionRow(
-                        icon = Icons.Default.School,
-                        title = "Обучение и подсказки",
-                        subtitle = "Пройти интерактивный гид по функциям заново",
-                        onClick = {
-                            viewModel.restartOnboardingGuide()
-                            viewModel.selectTab(ru.mesh.expressive.ui.viewmodel.MainTab.DASHBOARD)
-                            Toast.makeText(context, "Интерактивный гид запущен", Toast.LENGTH_SHORT).show()
-                        }
+                    // Hide Completed Homework
+                    SettingsToggleRow(
+                        icon = Icons.Default.CheckCircleOutline,
+                        title = "Скрывать сделанную домашку",
+                        subtitle = "Не показывать уже выполненные домашние задания в списке",
+                        isChecked = hideCompletedHomework,
+                        onCheckedChange = { viewModel.toggleHideCompletedHomework(it) }
                     )
                 }
             }
@@ -513,53 +623,31 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(if (isRefreshing) "Обновление..." else "Принудительно обновить данные сейчас")
                     }
-                }
-            }
-        }
 
-        // 7. Section: Аудит безопасности
-        item {
-            Text(
-                text = "Аудит трекеров и слежки",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ExpressiveCardShape,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    PrivacyAuditRow(
-                        title = "AppMetrica / Yandex SDK",
-                        subtitle = "Фоновая отправка событий и кликов",
-                        status = "Вырезано"
+                    // Replay Onboarding Tour
+                    SettingsActionRow(
+                        icon = Icons.Default.School,
+                        title = "Обучение и подсказки",
+                        subtitle = "Пройти интерактивный гид по функциям приложения заново",
+                        onClick = {
+                            viewModel.restartOnboardingGuide()
+                            viewModel.selectTab(ru.mesh.expressive.ui.viewmodel.MainTab.DASHBOARD)
+                            Toast.makeText(context, "Интерактивный гид запущен", Toast.LENGTH_SHORT).show()
+                        }
                     )
-                    PrivacyAuditRow(
-                        title = "Спутник МЭШ (Геотрекинг)",
-                        subtitle = "GPS отслеживание местоположения",
-                        status = "Вырезано"
-                    )
-                    PrivacyAuditRow(
-                        title = "VK MyTracker & OK Tracer",
-                        subtitle = "Рекламные профили и идентификация",
-                        status = "Вырезано"
-                    )
-                    PrivacyAuditRow(
-                        title = "Sentry APM & Varioqub",
-                        subtitle = "Удаленный сбор дампов и конфигураций",
-                        status = "Вырезано"
-                    )
-                    PrivacyAuditRow(
-                        title = "Прямое шифрование TLS",
-                        subtitle = "Защищенный трафик только к school.mos.ru",
-                        status = "Активно"
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Go to Portfolio
+                    SettingsActionRow(
+                        icon = Icons.Default.EmojiEvents,
+                        title = "Портфолио и Олимпиады",
+                        subtitle = "Все дипломы, ВсОШ, МОШ и награды ученика",
+                        onClick = {
+                            viewModel.selectTab(ru.mesh.expressive.ui.viewmodel.MainTab.PORTFOLIO)
+                        }
                     )
                 }
             }
@@ -634,18 +722,12 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = PillShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ) {
-                        Text(
-                            text = "вайбкод",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                        )
-                    }
+                    Text(
+                        text = "semi vibecoded by gemini",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
                 }
             }
         }
@@ -983,44 +1065,5 @@ private fun SettingsActionRow(
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
-    }
-}
-
-@Composable
-private fun PrivacyAuditRow(
-    title: String,
-    subtitle: String,
-    status: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-            )
-        }
-
-        Surface(
-            shape = PillShape,
-            color = if (status == "Вырезано" || status == "Активно") ScoreGreenContainer else MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Text(
-                text = status,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = if (status == "Вырезано" || status == "Активно") ScoreGreen else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }

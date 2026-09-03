@@ -39,14 +39,17 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
         java.text.SimpleDateFormat("d MMMM", java.util.Locale("ru")).format(java.util.Date(System.currentTimeMillis() + 86400000L))
     }
 
-    val filteredList = remember(homeworkList, filter, tomorrowDateFormatted) {
+    val hideCompletedHomework by viewModel.hideCompletedHomework.collectAsState()
+
+    val filteredList = remember(homeworkList, filter, tomorrowDateFormatted, hideCompletedHomework) {
+        val baseList = if (hideCompletedHomework) homeworkList.filter { !it.isDone } else homeworkList
         when (filter) {
-            "На завтра" -> homeworkList.filter {
+            "На завтра" -> baseList.filter {
                 it.dueDate == "Завтра" || it.dueDate.equals(tomorrowDateFormatted, ignoreCase = true)
             }
-            "Невыполненные" -> homeworkList.filter { !it.isDone }
-            "С тестами ЦДЗ" -> homeworkList.filter { it.hasDigitalTest }
-            else -> homeworkList
+            "Невыполненные" -> baseList.filter { !it.isDone }
+            "С тестами ЦДЗ" -> baseList.filter { it.hasDigitalTest }
+            else -> baseList
         }
     }
 
@@ -171,7 +174,7 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .expressiveBounceClick { viewModel.toggleHomework(hw.id) },
+                            .expressiveBounceClick { viewModel.openHomeworkDetails(hw) },
                         shape = ExpressiveCardShape,
                         colors = CardDefaults.cardColors(
                             containerColor = if (hw.isDone)

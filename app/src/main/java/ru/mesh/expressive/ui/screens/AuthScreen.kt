@@ -775,7 +775,7 @@ private fun WelcomeLandingView(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "вайбкод",
+                text = "semi vibecoded by gemini",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.align(Alignment.CenterHorizontally)
