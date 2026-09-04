@@ -150,11 +150,11 @@ fun AuthScreen(
                                             allowContentAccess = true
                                             loadWithOverviewMode = true
                                             useWideViewPort = true
-                                            setSupportMultipleWindows(false)
+                                            setSupportMultipleWindows(true)
                                             javaScriptCanOpenWindowsAutomatically = true
                                             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                                             cacheMode = WebSettings.LOAD_DEFAULT
-                                            userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+                                            userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro Build/TD1A.220804.031) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
                                         }
 
                                         webChromeClient = object : WebChromeClient() {
@@ -170,11 +170,6 @@ fun AuthScreen(
                                             }
 
                                             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                                                val url = request?.url?.toString() ?: return false
-                                                if (url.startsWith("http://") || url.startsWith("https://")) {
-                                                    view?.loadUrl(url)
-                                                    return true
-                                                }
                                                 return false
                                             }
 
@@ -197,6 +192,13 @@ fun AuthScreen(
                                                     val extracted = extractValidTokenFromCookies(allCookies)
                                                     if (!extracted.isNullOrBlank()) {
                                                         detectedWebToken = extracted
+                                                        val isMeshDomain = it.contains("school.mos.ru") || it.contains("dnevnik.mos.ru") || it.contains("myschool.mos.ru")
+                                                        if (isMeshDomain) {
+                                                            coroutineScope.launch {
+                                                                viewModel.saveAuthToken(extracted)
+                                                                onAuthSuccess()
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -834,12 +836,12 @@ private fun WelcomeFeatureRow(
 private fun extractValidTokenFromCookies(cookies: String): String? {
     val map = cookies.split(";").mapNotNull {
         val parts = it.split("=")
-        if (parts.size >= 2) parts[0].trim() to parts[1].trim() else null
+        if (parts.size >= 2) parts[0].trim() to parts.subList(1, parts.size).joinToString("=").trim() else null
     }.toMap()
 
-    val token = map["aupd_token"] ?: map["auth_token"] ?: map["mes_session"]
-    if (!token.isNullOrBlank() && token.length > 20) {
-        return token
-    }
-    return null
+    val token = map["auth_token"]?.takeIf { it.isNotBlank() && it.length > 20 }
+        ?: map["mes_session"]?.takeIf { it.isNotBlank() && it.length > 20 }
+        ?: map["aupd_token"]?.takeIf { it.isNotBlank() && it.length > 20 }
+
+    return token
 }

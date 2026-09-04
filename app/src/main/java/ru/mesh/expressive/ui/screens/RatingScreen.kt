@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,9 +38,15 @@ fun RatingScreen(viewModel: MeshMainViewModel) {
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     val subjectSummaries by viewModel.subjectSummaries.collectAsState()
+    val showWeightedGpa by viewModel.showWeightedGpa.collectAsState()
     val selectedRatingSubjectId by viewModel.selectedRatingSubjectId.collectAsState()
     val subjectAcademicRanks by viewModel.subjectAcademicRanks.collectAsState()
     val isSubjectRankLoading by viewModel.isSubjectRankLoading.collectAsState()
+
+    val liveGpa = remember(subjectSummaries, showWeightedGpa) {
+        val avgs = subjectSummaries.map { it.getEffectiveAverage(showWeightedGpa) }.filter { it > 0.0 }
+        if (avgs.isNotEmpty()) avgs.average() else 0.0
+    }
 
     val currentRanks = if (selectedRatingSubjectId != null) subjectAcademicRanks else academicRanks
 
@@ -77,6 +84,18 @@ fun RatingScreen(viewModel: MeshMainViewModel) {
                         containerColor = MaterialTheme.colorScheme.primaryContainer
                     )
                 ) {
+                    val myRankItem = currentRanks.find { it.isCurrentUser }
+                    val effectiveClassRank = myRankItem?.rankPlace?.takeIf { it > 0 } ?: rating.classRank
+                    val effectiveAvg = myRankItem?.averageMark?.takeIf { it > 0.0 } ?: (if (liveGpa > 0.0) liveGpa else (rating.score / 20.0).takeIf { it > 0.0 } ?: profile.gpa)
+                    val effectiveRankChange = if (myRankItem != null) {
+                        if (myRankItem.rankStatus.equals("up", ignoreCase = true)) 1
+                        else if (myRankItem.rankStatus.equals("down", ignoreCase = true)) -1
+                        else 0
+                    } else {
+                        rating.rankChange
+                    }
+                    val totalRanked = currentRanks.size.takeIf { it > 0 } ?: rating.totalInClass
+
                     Column(modifier = Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -85,18 +104,18 @@ fun RatingScreen(viewModel: MeshMainViewModel) {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Рейтинг учащегося",
+                                    text = if (selectedRatingSubjectId != null) "Рейтинг по предмету" else "Рейтинг учащегося",
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                 )
                                 Text(
-                                    text = if (rating.classRank > 0) "${rating.classRank} место в классе" else "Рейтинг не рассчитан",
+                                    text = if (effectiveClassRank > 0) "$effectiveClassRank место в классе" else "Рейтинг не рассчитан",
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    text = "Всего в рейтинге класса: ${if (academicRanks.isNotEmpty()) academicRanks.size else rating.totalInClass} учеников",
+                                    text = "Всего в рейтинге класса: $totalRanked учеников",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                 )
@@ -118,14 +137,14 @@ fun RatingScreen(viewModel: MeshMainViewModel) {
                             }
                         }
 
-                        if (rating.classRank > 0) {
+                        if (effectiveClassRank > 0) {
                             Spacer(modifier = Modifier.height(14.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                val avgMarkFormatted = String.format(Locale.US, "%.2f", rating.score / 20.0)
+                                val avgMarkFormatted = if (effectiveAvg > 0.0) String.format(Locale.US, "%.2f", effectiveAvg) else "—"
                                 Surface(
                                     shape = PillShape,
                                     color = ScoreGreenContainer
@@ -143,8 +162,8 @@ fun RatingScreen(viewModel: MeshMainViewModel) {
                                     shape = PillShape,
                                     color = MaterialTheme.colorScheme.surface
                                 ) {
-                                    val statusText = if (rating.rankChange > 0) "Динамика: ▲" else if (rating.rankChange < 0) "Динамика: ▼" else "Динамика: —"
-                                    val statusColor = if (rating.rankChange > 0) ScoreGreen else if (rating.rankChange < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                    val statusText = if (effectiveRankChange > 0) "Динамика: ▲" else if (effectiveRankChange < 0) "Динамика: ▼" else "Динамика: —"
+                                    val statusColor = if (effectiveRankChange > 0) ScoreGreen else if (effectiveRankChange < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                                     Text(
                                         text = statusText,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),

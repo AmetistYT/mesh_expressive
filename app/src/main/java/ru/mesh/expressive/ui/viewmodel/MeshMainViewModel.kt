@@ -116,7 +116,8 @@ class MeshMainViewModel(
         viewModelScope.launch {
             _isSubjectRankLoading.value = true
             try {
-                val list = repository.fetchSubjectClassRank(subjectId)
+                val subjName = subjectSummaries.value.find { it.subjectId == subjectId }?.subject
+                val list = repository.fetchSubjectClassRank(subjectId, subjName)
                 _subjectAcademicRanks.value = list
             } finally {
                 _isSubjectRankLoading.value = false
@@ -252,6 +253,7 @@ class MeshMainViewModel(
     fun toggleShowWeightedGpa(enabled: Boolean) {
         sessionManager.showWeightedGpa = enabled
         _showWeightedGpa.value = enabled
+        repository.refreshLiveGpaAndRating()
     }
 
     fun toggleHideCompletedQuests(enabled: Boolean) {
@@ -447,7 +449,7 @@ class MeshMainViewModel(
 
         viewModelScope.launch {
             _isMarkSubjectRanksLoading.value = true
-            val ranks = repository.fetchSubjectClassRank(subjId)
+            val ranks = repository.fetchSubjectClassRank(subjId, lesson.subject)
             _markSubjectRanks.value = ranks
             _isMarkSubjectRanksLoading.value = false
         }

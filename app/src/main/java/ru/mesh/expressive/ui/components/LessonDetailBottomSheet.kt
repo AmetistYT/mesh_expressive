@@ -332,6 +332,8 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
     val selectedMarkLesson by viewModel.selectedMarkLesson.collectAsState()
     val ranks by viewModel.markSubjectRanks.collectAsState()
     val isRanksLoading by viewModel.isMarkSubjectRanksLoading.collectAsState()
+    val subjectSummaries by viewModel.subjectSummaries.collectAsState()
+    val showWeightedGpa by viewModel.showWeightedGpa.collectAsState()
 
     if (selectedMarkLesson != null) {
         val lesson = selectedMarkLesson!!
@@ -509,6 +511,15 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     ) {
                         itemsIndexed(ranks) { _, item ->
                             val isMe = item.isCurrentUser
+                            val displayAvg = if (isMe) {
+                                val liveSubj = subjectSummaries.find {
+                                    (lesson.subjectId > 0 && it.subjectId == lesson.subjectId) ||
+                                    (lesson.subject.isNotBlank() && it.subject.equals(lesson.subject, ignoreCase = true))
+                                }
+                                liveSubj?.getEffectiveAverage(showWeightedGpa)?.takeIf { it > 0.0 } ?: item.averageMark
+                            } else {
+                                item.averageMark
+                            }
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = ExpressiveCardShape,
@@ -564,7 +575,7 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                                         color = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                                     ) {
                                         Text(
-                                            text = String.format(java.util.Locale.US, "%.2f", item.averageMark),
+                                            text = String.format(java.util.Locale.US, "%.2f", displayAvg),
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,

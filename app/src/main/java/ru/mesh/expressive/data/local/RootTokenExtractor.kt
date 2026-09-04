@@ -21,27 +21,27 @@ object RootTokenExtractor {
 
         try {
             val myUid = AndroidProcess.myUid()
-            // Copy files from official app to our own readable cache directory with app ownership
-            val cmd = "cp -r /data/data/ru.mes.dnevnik/no_backup/ ${targetDir.absolutePath}/ 2>/dev/null; " +
-                      "cp -r /data/data/ru.mes.dnevnik/shared_prefs/ ${targetDir.absolutePath}/ 2>/dev/null; " +
-                      "cp -r /data/data/ru.mes.dnevnik/app_webview/ ${targetDir.absolutePath}/ 2>/dev/null; " +
-                      "chown -R $myUid:$myUid ${targetDir.absolutePath} 2>/dev/null; " +
-                      "chmod -R 777 ${targetDir.absolutePath} 2>/dev/null"
+            val packages = listOf("ru.mes.dnevnik", "ru.mesh.client", "ru.mesh.expressive")
+            val copyCommands = packages.joinToString("; ") { pkg ->
+                "cp -r /data/data/$pkg/no_backup/ ${targetDir.absolutePath}/$pkg 2>/dev/null; " +
+                "cp -r /data/data/$pkg/shared_prefs/ ${targetDir.absolutePath}/$pkg 2>/dev/null; " +
+                "cp -r /data/data/$pkg/app_webview/ ${targetDir.absolutePath}/$pkg 2>/dev/null"
+            }
+            val cmd = "$copyCommands; chown -R $myUid:$myUid ${targetDir.absolutePath} 2>/dev/null; chmod -R 777 ${targetDir.absolutePath} 2>/dev/null"
 
             val process = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
             process.waitFor()
 
-            // Scan all copied files in Kotlin
+            // Scan all copied files for JWT tokens and choose the freshest valid token
             val jwtRegex = Regex("eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}")
-            var foundToken: String? = null
+            val candidateTokens = mutableListOf<String>()
 
             targetDir.walkTopDown().forEach { file ->
-                if (file.isFile && foundToken == null) {
+                if (file.isFile) {
                     try {
                         val content = file.readText(Charsets.UTF_8)
-                        val match = jwtRegex.find(content)
-                        if (match != null) {
-                            foundToken = match.value
+                        jwtRegex.findAll(content).forEach { match ->
+                            candidateTokens.add(match.value)
                         }
                     } catch (_: Exception) {}
                 }
@@ -50,16 +50,41 @@ object RootTokenExtractor {
             // Cleanup temp files
             targetDir.deleteRecursively()
 
-            if (!foundToken.isNullOrBlank()) {
+            val nowSeconds = System.currentTimeMillis() / 1000
+            var bestToken: String? = null
+            var bestExp = 0L
+
+            for (tok in candidateTokens.distinct()) {
+                val parts = tok.split(".")
+                if (parts.size >= 2) {
+                    try {
+                        val decodedBytes = android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING)
+                        val jsonStr = String(decodedBytes, Charsets.UTF_8)
+                        val json = org.json.JSONObject(jsonStr)
+                        val exp = json.optLong("exp", 0L)
+                        val iss = json.optString("iss", "")
+                        if (iss.contains("school.mos.ru") && exp > nowSeconds) {
+                            if (exp > bestExp) {
+                                bestExp = exp
+                                bestToken = tok
+                            }
+                        } else if (bestToken == null && iss.contains("school.mos.ru")) {
+                            bestToken = tok
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
+            if (!bestToken.isNullOrBlank()) {
                 RootExtractResult(
                     isSuccess = true,
-                    token = foundToken,
+                    token = bestToken,
                     message = "Токен успешно извлечен через Root!"
                 )
             } else {
                 RootExtractResult(
                     isSuccess = false,
-                    message = "Активная сессия не найдена в файлах ru.mes.dnevnik. Убедитесь, что вы авторизованы в официальном приложении МЭШ."
+                    message = "Активная сессия не найдена в файлах МЭШ. Убедитесь, что вы авторизованы в приложении."
                 )
             }
         } catch (e: Exception) {

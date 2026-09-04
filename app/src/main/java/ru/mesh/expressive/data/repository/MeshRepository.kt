@@ -338,6 +338,82 @@ class MeshRepository(private val sessionManager: SessionManager) {
         }
     }
 
+    fun calculateLiveGpa(showWeighted: Boolean = sessionManager.showWeightedGpa): Double {
+        val valid = _subjectSummaries.value
+            .map { it.getEffectiveAverage(showWeighted) }
+            .filter { it > 0.0 }
+        return if (valid.isNotEmpty()) valid.average() else _studentProfile.value.gpa
+    }
+
+    private fun reconcileAndRankItems(
+        items: List<AcademicClassRankItem>,
+        currentUserGuid: String,
+        currentUserLiveAverage: Double
+    ): List<AcademicClassRankItem> {
+        if (items.isEmpty()) return emptyList()
+
+        val updatedItems = items.map { item ->
+            val isCurrent = item.isCurrentUser || 
+                (currentUserGuid.isNotBlank() && item.personId.equals(currentUserGuid, ignoreCase = true)) ||
+                item.displayName.contains("(Вы)", ignoreCase = true)
+            if (isCurrent) {
+                val effAvg = if (currentUserLiveAverage > 0.0) currentUserLiveAverage else item.averageMark
+                item.copy(averageMark = effAvg, isCurrentUser = true)
+            } else {
+                item
+            }
+        }
+
+        val rated = updatedItems.filter { it.averageMark > 0.0 }
+        val unrated = updatedItems.filter { it.averageMark <= 0.0 }.map { it.copy(rankPlace = 0) }
+
+        val distinctAverages = rated
+            .map { String.format(Locale.US, "%.2f", it.averageMark).toDoubleOrNull() ?: it.averageMark }
+            .distinct()
+            .sortedDescending()
+
+        val rankByAvg = distinctAverages.mapIndexed { index, avg -> avg to (index + 1) }.toMap()
+
+        val rankedRated = rated.map { item ->
+            val roundedAvg = String.format(Locale.US, "%.2f", item.averageMark).toDoubleOrNull() ?: item.averageMark
+            val newPlace = rankByAvg[roundedAvg] ?: item.rankPlace
+            val newStatus = if (item.isCurrentUser) {
+                if (item.rankPlace > 0 && newPlace < item.rankPlace) "up"
+                else if (item.rankPlace > 0 && newPlace > item.rankPlace) "down"
+                else item.rankStatus
+            } else {
+                item.rankStatus
+            }
+            item.copy(rankPlace = newPlace, rankStatus = newStatus)
+        }.sortedWith(compareBy({ it.rankPlace }, { -it.averageMark }))
+
+        return rankedRated + unrated
+    }
+
+    fun refreshLiveGpaAndRating() {
+        val cachedRanks = _academicClassRanks.value
+        if (cachedRanks.isNotEmpty()) {
+            val myGuid = sessionManager.cachedProfile?.contingentGuid.orEmpty()
+            val liveGpa = calculateLiveGpa(sessionManager.showWeightedGpa)
+            val reconciled = reconcileAndRankItems(cachedRanks, myGuid, liveGpa)
+            _academicClassRanks.value = reconciled
+            sessionManager.cachedAcademicClassRanks = reconciled
+
+            val myRank = reconciled.find { it.isCurrentUser }
+            if (myRank != null && myRank.averageMark > 0.0) {
+                val oldRInfo = _ratingInfo.value
+                val newRInfo = RatingInfo(
+                    classRank = myRank.rankPlace,
+                    totalInClass = reconciled.size,
+                    score = (myRank.averageMark * 20).toInt(),
+                    rankChange = if (myRank.rankStatus.equals("up", ignoreCase = true)) 1 else if (myRank.rankStatus.equals("down", ignoreCase = true)) -1 else oldRInfo.rankChange
+                )
+                _ratingInfo.value = newRInfo
+                sessionManager.cachedRatingInfo = newRInfo
+            }
+        }
+    }
+
     private fun loadCachedData() {
         sessionManager.cachedProfile?.let { _studentProfile.value = it }
         sessionManager.cachedWeekSchedule?.let { _weekSchedule.value = it }
@@ -352,8 +428,35 @@ class MeshRepository(private val sessionManager: SessionManager) {
         sessionManager.cachedRewards?.let { _rewards.value = it }
         sessionManager.cachedProfileRewards?.let { _profileRewards.value = it }
         sessionManager.cachedMealsBalance?.let { _mealsBalance.value = it }
-        sessionManager.cachedRatingInfo?.let { _ratingInfo.value = it }
-        sessionManager.cachedAcademicClassRanks?.let { _academicClassRanks.value = it }
+        val liveGpa = calculateLiveGpa(sessionManager.showWeightedGpa)
+        sessionManager.cachedRatingInfo?.let {
+            if (liveGpa > 0.0) {
+                _ratingInfo.value = it.copy(score = (liveGpa * 20).toInt())
+            } else {
+                _ratingInfo.value = it
+            }
+        }
+        val cachedRanks = sessionManager.cachedAcademicClassRanks
+        if (!cachedRanks.isNullOrEmpty()) {
+            val myGuid = sessionManager.cachedProfile?.contingentGuid.orEmpty()
+            if (liveGpa > 0.0) {
+                val reconciled = reconcileAndRankItems(cachedRanks, myGuid, liveGpa)
+                _academicClassRanks.value = reconciled
+                val myRank = reconciled.find { it.isCurrentUser }
+                if (myRank != null && myRank.averageMark > 0.0) {
+                    val oldRInfo = sessionManager.cachedRatingInfo
+                    val newRInfo = RatingInfo(
+                        classRank = myRank.rankPlace,
+                        totalInClass = reconciled.size,
+                        score = (myRank.averageMark * 20).toInt(),
+                        rankChange = if (myRank.rankStatus.equals("up", ignoreCase = true)) 1 else if (myRank.rankStatus.equals("down", ignoreCase = true)) -1 else (oldRInfo?.rankChange ?: 0)
+                    )
+                    _ratingInfo.value = newRInfo
+                }
+            } else {
+                _academicClassRanks.value = cachedRanks
+            }
+        }
         sessionManager.cachedAttendance?.let { _attendance.value = it }
         sessionManager.cachedPeriodsSchedules?.let {
             _periodsSchedules.value = it
@@ -970,14 +1073,7 @@ class MeshRepository(private val sessionManager: SessionManager) {
                     val avgMark = myItem?.rank?.averageMarkFive ?: 0.0
                     val rankDelta = if (myItem?.rank?.rankStatus.equals("UP", ignoreCase = true)) 1 else if (myItem?.rank?.rankStatus.equals("DOWN", ignoreCase = true)) -1 else 0
 
-                    val rInfo = RatingInfo(
-                        classRank = classRank,
-                        totalInClass = rankList.size,
-                        score = (avgMark * 20).toInt(),
-                        rankChange = rankDelta
-                    )
-                    _ratingInfo.value = rInfo
-                    sessionManager.cachedRatingInfo = rInfo
+                    val liveGpa = calculateLiveGpa(sessionManager.showWeightedGpa)
 
                     val classmatesMap = _classmates.value.associateBy { it.profileId }
                     val classmatesGamifMap = _classmates.value.associateBy { it.gamificationId }
@@ -1016,9 +1112,11 @@ class MeshRepository(private val sessionManager: SessionManager) {
                                     } catch (_: Exception) {}
                                 }
 
+                                val finalAvg = if (isMe && liveGpa > 0.0) liveGpa else (item.rank?.averageMarkFive ?: 0.0)
+
                                 AcademicClassRankItem(
                                     rankPlace = place,
-                                    averageMark = item.rank?.averageMarkFive ?: 0.0,
+                                    averageMark = finalAvg,
                                     rankStatus = item.rank?.rankStatus ?: "stable",
                                     isCurrentUser = isMe,
                                     personId = guid,
@@ -1033,16 +1131,32 @@ class MeshRepository(private val sessionManager: SessionManager) {
                         if (it.displayName.isBlank()) {
                             it.copy(displayName = "Ученик ${idx + 1}")
                         } else it
-                    }.sortedWith(compareBy({ it.rankPlace }, { -it.averageMark }))
+                    }
 
-                    _academicClassRanks.value = academicItems
-                    sessionManager.cachedAcademicClassRanks = academicItems
-                    android.util.Log.d("MeshRating", "Successfully loaded and resolved ${academicItems.size} academic ranks!")
+                    val reconciledAcademicItems = reconcileAndRankItems(academicItems, effectiveGuid, liveGpa)
+
+                    _academicClassRanks.value = reconciledAcademicItems
+                    sessionManager.cachedAcademicClassRanks = reconciledAcademicItems
+                    android.util.Log.d("MeshRating", "Successfully loaded and resolved ${reconciledAcademicItems.size} academic ranks!")
+
+                    val myItemInReconciled = reconciledAcademicItems.find { it.isCurrentUser }
+                    val finalClassRank = myItemInReconciled?.rankPlace?.takeIf { it > 0 } ?: classRank
+                    val finalAvgMark = myItemInReconciled?.averageMark?.takeIf { it > 0.0 } ?: (if (liveGpa > 0.0) liveGpa else avgMark)
+                    val finalRankDelta = if (myItemInReconciled?.rankStatus.equals("up", ignoreCase = true)) 1 else if (myItemInReconciled?.rankStatus.equals("down", ignoreCase = true)) -1 else rankDelta
+
+                    val rInfo = RatingInfo(
+                        classRank = finalClassRank,
+                        totalInClass = reconciledAcademicItems.size,
+                        score = (finalAvgMark * 20).toInt(),
+                        rankChange = finalRankDelta
+                    )
+                    _ratingInfo.value = rInfo
+                    sessionManager.cachedRatingInfo = rInfo
 
                     // Также обновляем рейтинг и средний балл в списке одноклассников
-                    if (academicItems.isNotEmpty()) {
-                        val rankByPid = academicItems.associateBy { it.profileId }
-                        val rankByGamif = academicItems.associateBy { it.gamificationId }
+                    if (reconciledAcademicItems.isNotEmpty()) {
+                        val rankByPid = reconciledAcademicItems.associateBy { it.profileId }
+                        val rankByGamif = reconciledAcademicItems.associateBy { it.gamificationId }
                         val updated = _classmates.value.map { mate ->
                             val foundRank = rankByPid[mate.profileId] ?: rankByGamif[mate.gamificationId]
                             if (foundRank != null) {
@@ -1777,13 +1891,22 @@ class MeshRepository(private val sessionManager: SessionManager) {
         combined
     }
 
-    suspend fun fetchSubjectClassRank(subjectId: Long? = null): List<AcademicClassRankItem> = withContext(Dispatchers.IO) {
+    suspend fun fetchSubjectClassRank(subjectId: Long? = null, subjectName: String? = null): List<AcademicClassRankItem> = withContext(Dispatchers.IO) {
         val token = sessionManager.authToken ?: return@withContext emptyList()
         val bearerToken = if (token.startsWith("Bearer ")) token else "Bearer $token"
-        val effectiveGuid = sessionManager.cachedProfile?.contingentGuid ?: "3473f068-8ec0-47a1-920a-a18e75d6c389"
-        val effectiveClassUnitId = 2073368L
+        val effectiveGuid = sessionManager.cachedProfile?.contingentGuid
+            ?: _studentProfile.value.contingentGuid.ifBlank { "3473f068-8ec0-47a1-920a-a18e75d6c389" }
+        val effectiveClassUnitId = if (_studentProfile.value.classUnitId > 0) _studentProfile.value.classUnitId else sessionManager.classUnitId
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         val dynamicProfileId = sessionManager.profileId.toLongOrNull() ?: 0L
+
+        val liveSubj = _subjectSummaries.value.find { subj ->
+            (subjectId != null && subjectId > 0 && subj.subjectId == subjectId) ||
+            (!subjectName.isNullOrBlank() && subj.subject.equals(subjectName, ignoreCase = true))
+        }
+        val liveSubjAvg = liveSubj?.getEffectiveAverage(sessionManager.showWeightedGpa)
+            ?: liveSubj?.averageMark
+            ?: 0.0
 
         try {
             val ratingResp = MeshNetworkClient.ratingApi.getClassRank(
@@ -1840,9 +1963,12 @@ class MeshRepository(private val sessionManager: SessionManager) {
                                 } catch (_: Exception) {}
                             }
 
+                            val serverAvg = item.rank?.averageMarkFive ?: 0.0
+                            val finalAvg = if (isMe && liveSubjAvg > 0.0) liveSubjAvg else serverAvg
+
                             AcademicClassRankItem(
                                 rankPlace = place,
-                                averageMark = item.rank?.averageMarkFive ?: 0.0,
+                                averageMark = finalAvg,
                                 rankStatus = item.rank?.rankStatus ?: "stable",
                                 isCurrentUser = isMe,
                                 personId = guid,
@@ -1857,9 +1983,27 @@ class MeshRepository(private val sessionManager: SessionManager) {
                     if (it.displayName.isBlank()) {
                         it.copy(displayName = "Ученик ${idx + 1}")
                     } else it
-                }.sortedWith(compareBy({ it.rankPlace }, { -it.averageMark }))
+                }
 
-                return@withContext items
+                val allItems = if (items.none { it.isCurrentUser } && liveSubjAvg > 0.0) {
+                    val myItem = AcademicClassRankItem(
+                        rankPlace = 1,
+                        averageMark = liveSubjAvg,
+                        rankStatus = "stable",
+                        isCurrentUser = true,
+                        personId = effectiveGuid,
+                        imageId = null,
+                        displayName = "${_studentProfile.value.lastName} ${_studentProfile.value.firstName} (Вы)",
+                        gamificationId = _gamificationProfile.value.gamificationId.orEmpty(),
+                        profileId = dynamicProfileId
+                    )
+                    items + myItem
+                } else {
+                    items
+                }
+
+                val reconciledItems = reconcileAndRankItems(allItems, effectiveGuid, liveSubjAvg)
+                return@withContext reconciledItems
             }
         } catch (_: Exception) {}
         emptyList()
