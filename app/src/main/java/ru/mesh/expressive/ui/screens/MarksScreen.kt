@@ -53,7 +53,19 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
 
     val gpaLabel = if (showWeightedGpa) "Средневзвешенный балл" else "Средний балл (арифм.)"
     val activeGpa = remember(subjectSummaries, profile.gpa, showWeightedGpa) {
-        if (subjectSummaries.isNotEmpty()) {
+        val allMarks = subjectSummaries.flatMap { it.marks }
+        if (allMarks.isNotEmpty()) {
+            if (showWeightedGpa) {
+                val totalWeight = allMarks.sumOf { it.weight }
+                if (totalWeight > 0.0) {
+                    allMarks.sumOf { it.value * it.weight } / totalWeight
+                } else {
+                    allMarks.map { it.value }.average()
+                }
+            } else {
+                allMarks.map { it.value }.average()
+            }
+        } else if (subjectSummaries.isNotEmpty()) {
             val avgs = subjectSummaries.map { it.getEffectiveAverage(showWeightedGpa) }.filter { it > 0.0 }
             if (avgs.isNotEmpty()) avgs.average() else profile.gpa
         } else profile.gpa

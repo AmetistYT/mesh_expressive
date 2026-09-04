@@ -44,8 +44,22 @@ fun RatingScreen(viewModel: MeshMainViewModel) {
     val isSubjectRankLoading by viewModel.isSubjectRankLoading.collectAsState()
 
     val liveGpa = remember(subjectSummaries, showWeightedGpa) {
-        val avgs = subjectSummaries.map { it.getEffectiveAverage(showWeightedGpa) }.filter { it > 0.0 }
-        if (avgs.isNotEmpty()) avgs.average() else 0.0
+        val allMarks = subjectSummaries.flatMap { it.marks }
+        if (allMarks.isNotEmpty()) {
+            if (showWeightedGpa) {
+                val totalWeight = allMarks.sumOf { it.weight }
+                if (totalWeight > 0.0) {
+                    allMarks.sumOf { it.value * it.weight } / totalWeight
+                } else {
+                    allMarks.map { it.value }.average()
+                }
+            } else {
+                allMarks.map { it.value }.average()
+            }
+        } else {
+            val avgs = subjectSummaries.map { it.getEffectiveAverage(showWeightedGpa) }.filter { it > 0.0 }
+            if (avgs.isNotEmpty()) avgs.average() else 0.0
+        }
     }
 
     val currentRanks = if (selectedRatingSubjectId != null) subjectAcademicRanks else academicRanks

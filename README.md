@@ -9,10 +9,15 @@
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material3_Expressive-4285F4.svg?style=flat)](https://developer.android.com/jetpack/compose)
 [![Zero Trackers](https://img.shields.io/badge/Trackers-0_(Pure)-00C853.svg?style=flat)](https://github.com/AmetistYT)
 [![Vibecoded](https://img.shields.io/badge/Style-semi_vibecoded_by_gemini-purple.svg)](https://github.com/AmetistYT)
-[![Version](https://img.shields.io/badge/Version-2.0.0-blue.svg)](https://github.com/AmetistYT/mesh_expressive/releases/tag/v2.0.0)
+[![Version](https://img.shields.io/badge/Version-2.1.0-blue.svg)](https://github.com/AmetistYT/mesh_expressive/releases/tag/v2.1.0)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
+
+## Что нового в v2.1.0
+- **Исправление математики среднего балла**: честный и точный прямой расчет общего и средневзвешенного GPA по всем оценкам (например, оценки 5, 3, 3 теперь дают точные 3.67, а не искаженные 3.50). Полная синхронизация со шкалой прогресса и калькулятором оценок.
+- **Бесшовное фоновое автообновление JWT-токена**: при обнаружении 401 Unauthorized или истечении срока действия токена (`exp`) приложение автоматически обновляет авторизацию в фоне через оптимизированный легковесный WebView без сброса сессии. Предусмотрен экран загрузки с кнопкой мгновенного перехода в сохраненный офлайн-кэш.
+- **Рейтинг класса за конкретный урок**: при клике на оценку открывается рейтинг класса именно за проведенный урок/дату с цветными бейджами оценок каждого ученика, распределением мест и выделением карточки пользователя.
 
 ## Главные особенности и функционал v2.0.0
 

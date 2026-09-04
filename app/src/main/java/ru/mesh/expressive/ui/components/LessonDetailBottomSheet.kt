@@ -22,8 +22,7 @@ import androidx.compose.ui.unit.sp
 import ru.mesh.expressive.data.model.AcademicClassRankItem
 import ru.mesh.expressive.data.model.LessonScheduleItem
 import ru.mesh.expressive.data.model.MarkDateFormatter
-import ru.mesh.expressive.ui.theme.ExpressiveCardShape
-import ru.mesh.expressive.ui.theme.PillShape
+import ru.mesh.expressive.ui.theme.*
 import ru.mesh.expressive.ui.viewmodel.MeshMainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -332,8 +331,6 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
     val selectedMarkLesson by viewModel.selectedMarkLesson.collectAsState()
     val ranks by viewModel.markSubjectRanks.collectAsState()
     val isRanksLoading by viewModel.isMarkSubjectRanksLoading.collectAsState()
-    val subjectSummaries by viewModel.subjectSummaries.collectAsState()
-    val showWeightedGpa by viewModel.showWeightedGpa.collectAsState()
 
     if (selectedMarkLesson != null) {
         val lesson = selectedMarkLesson!!
@@ -454,7 +451,7 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Рейтинг класса по предмету",
+                        text = "Рейтинг класса за урок",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -496,7 +493,7 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
                     ) {
                         Text(
-                            text = "По этому предмету оценок в четверти ещё не выставлено ни одному ученику класса",
+                            text = "За этот урок оценки ещё не выставлены другим ученикам",
                             modifier = Modifier.padding(16.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -511,15 +508,22 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     ) {
                         itemsIndexed(ranks) { _, item ->
                             val isMe = item.isCurrentUser
-                            val displayAvg = if (isMe) {
-                                val liveSubj = subjectSummaries.find {
-                                    (lesson.subjectId > 0 && it.subjectId == lesson.subjectId) ||
-                                    (lesson.subject.isNotBlank() && it.subject.equals(lesson.subject, ignoreCase = true))
-                                }
-                                liveSubj?.getEffectiveAverage(showWeightedGpa)?.takeIf { it > 0.0 } ?: item.averageMark
-                            } else {
-                                item.averageMark
+                            val markVal = item.lessonMark ?: when {
+                                item.averageMark >= 4.5 -> 5
+                                item.averageMark >= 3.5 -> 4
+                                item.averageMark >= 2.5 -> 3
+                                item.averageMark > 0.0 -> 2
+                                else -> null
                             }
+
+                            val (badgeBg, badgeText) = when (markVal) {
+                                5 -> ScoreGreenContainer to ScoreGreen
+                                4 -> ScoreBlueContainer to ScoreBlue
+                                3 -> ScoreOrangeContainer to ScoreOrange
+                                2 -> ScoreRedContainer to ScoreRed
+                                else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = ExpressiveCardShape,
@@ -572,14 +576,14 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                                     }
                                     Surface(
                                         shape = PillShape,
-                                        color = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                        color = badgeBg
                                     ) {
                                         Text(
-                                            text = String.format(java.util.Locale.US, "%.2f", displayAvg),
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                            style = MaterialTheme.typography.labelSmall,
+                                            text = if (markVal != null) "$markVal" else if (item.averageMark > 0.0) String.format(java.util.Locale.US, "%.1f", item.averageMark) else "—",
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                            style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = badgeText
                                         )
                                     }
                                 }

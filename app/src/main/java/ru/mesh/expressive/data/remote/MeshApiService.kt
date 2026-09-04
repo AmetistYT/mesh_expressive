@@ -703,11 +703,26 @@ object MeshNetworkClient {
     private const val BASE_RATING = "https://school.mos.ru/api/ej/rating/v1/"
     private const val BASE_MEALS = "https://school.mos.ru/api/food/meals/v3/"
 
+    var onUnauthorizedListener: (() -> Unit)? = null
+
+    private val authInterceptor = okhttp3.Interceptor { chain ->
+        val request = chain.request()
+        val response = chain.proceed(request)
+        if (response.code == 401) {
+            val auth = request.header("Authorization")
+            if (!auth.isNullOrBlank()) {
+                onUnauthorizedListener?.invoke()
+            }
+        }
+        response
+    }
+
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BASIC
     }
 
     val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(authInterceptor)
         .addInterceptor(logging)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)

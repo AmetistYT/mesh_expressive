@@ -175,7 +175,48 @@ class MeshMainViewModel(
         sessionManager.marksViewMode = mode.name
     }
 
+    private val _isTokenRefreshing = MutableStateFlow(false)
+    val isTokenRefreshing: StateFlow<Boolean> = _isTokenRefreshing.asStateFlow()
+
+    private val _isTokenRefreshOverlayDismissed = MutableStateFlow(false)
+    val isTokenRefreshOverlayDismissed: StateFlow<Boolean> = _isTokenRefreshOverlayDismissed.asStateFlow()
+
+    private val _showReAuthDialog = MutableStateFlow(false)
+    val showReAuthDialog: StateFlow<Boolean> = _showReAuthDialog.asStateFlow()
+
+    fun triggerTokenRefresh() {
+        if (!sessionManager.isLoggedIn || _isTokenRefreshing.value) return
+        _isTokenRefreshing.value = true
+        _isTokenRefreshOverlayDismissed.value = false
+    }
+
+    fun dismissTokenRefreshOverlay() {
+        _isTokenRefreshOverlayDismissed.value = true
+    }
+
+    fun onTokenRefreshSuccess(newToken: String) {
+        _isTokenRefreshing.value = false
+        _isTokenRefreshOverlayDismissed.value = false
+        saveAuthToken(newToken)
+        refreshData()
+    }
+
+    fun onTokenRefreshFailed() {
+        _isTokenRefreshing.value = false
+        _isTokenRefreshOverlayDismissed.value = false
+        _showReAuthDialog.value = true
+    }
+
+    fun dismissReAuthDialog() {
+        _showReAuthDialog.value = false
+    }
+
     init {
+        viewModelScope.launch {
+            repository.unauthorizedEvent.collect {
+                triggerTokenRefresh()
+            }
+        }
         viewModelScope.launch {
             scheduleToday.collect { lessons ->
                 if (lessons.isNotEmpty()) {
@@ -342,6 +383,10 @@ class MeshMainViewModel(
 
     fun clearCache() {
         viewModelScope.launch {
+            try {
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                android.webkit.CookieManager.getInstance().flush()
+            } catch (_: Exception) {}
             repository.logout()
             sessionManager.clear()
             _currentTab.value = MainTab.AUTH
@@ -349,6 +394,10 @@ class MeshMainViewModel(
     }
 
     fun logout() {
+        try {
+            android.webkit.CookieManager.getInstance().removeAllCookies(null)
+            android.webkit.CookieManager.getInstance().flush()
+        } catch (_: Exception) {}
         repository.logout()
         _currentTab.value = MainTab.AUTH
     }
@@ -444,12 +493,9 @@ class MeshMainViewModel(
 
     fun openMarkDetails(lesson: LessonScheduleItem) {
         _selectedMarkLesson.value = lesson
-        val subjId = lesson.subjectId.takeIf { it > 0 }
-            ?: subjectSummaries.value.find { it.subject.equals(lesson.subject, ignoreCase = true) }?.subjectId
-
         viewModelScope.launch {
             _isMarkSubjectRanksLoading.value = true
-            val ranks = repository.fetchSubjectClassRank(subjId, lesson.subject)
+            val ranks = repository.fetchLessonClassRank(lesson)
             _markSubjectRanks.value = ranks
             _isMarkSubjectRanksLoading.value = false
         }
@@ -460,6 +506,7 @@ class MeshMainViewModel(
             id = mark.id,
             subject = mark.subject,
             subjectId = mark.subjectId,
+            date = mark.date,
             mark = mark.value,
             markWeight = mark.weight,
             markComment = mark.comment,

@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.launch
 import ru.mesh.expressive.data.local.RootTokenExtractor
+import ru.mesh.expressive.data.local.TokenUtils
 import ru.mesh.expressive.ui.components.M3CircularWavyLoader
 import ru.mesh.expressive.ui.components.M3WavyProgressIndicator
 import ru.mesh.expressive.ui.theme.*
@@ -92,6 +93,20 @@ fun AuthScreen(
                     },
                     actions = {
                         if (screenState == AuthScreenState.WEB_MOS_RU) {
+                            IconButton(onClick = { showMosRuGuideDialog = true }) {
+                                Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Инструкция")
+                            }
+                            IconButton(onClick = {
+                                val cm = CookieManager.getInstance()
+                                cm.removeAllCookies(null)
+                                cm.flush()
+                                detectedWebToken = null
+                                webViewInstance?.clearCache(true)
+                                webViewInstance?.loadUrl(MOS_RU_AUTH_URL)
+                                android.widget.Toast.makeText(context, "Куки очищены. Повторите вход.", android.widget.Toast.LENGTH_SHORT).show()
+                            }) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = "Очистить куки")
+                            }
                             IconButton(onClick = { webViewInstance?.reload() }) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Обновить")
                             }
@@ -116,7 +131,6 @@ fun AuthScreen(
                         WelcomeLandingView(
                             onLoginMosRuClick = {
                                 screenState = AuthScreenState.WEB_MOS_RU
-                                showMosRuGuideDialog = true
                             },
                             onRootTokenClick = { screenState = AuthScreenState.ROOT_AND_MANUAL_TOKEN },
                             onContinueDemoClick = onAuthSuccess
@@ -189,11 +203,12 @@ fun AuthScreen(
                                                     val c3 = cookieManager.getCookie(it) ?: ""
                                                     val allCookies = "$c1; $c2; $c3"
 
-                                                    val extracted = extractValidTokenFromCookies(allCookies)
+                                                    val extracted = TokenUtils.extractValidTokenFromCookies(allCookies)
                                                     if (!extracted.isNullOrBlank()) {
                                                         detectedWebToken = extracted
                                                         val isMeshDomain = it.contains("school.mos.ru") || it.contains("dnevnik.mos.ru") || it.contains("myschool.mos.ru")
                                                         if (isMeshDomain) {
+                                                            cookieManager.flush()
                                                             coroutineScope.launch {
                                                                 viewModel.saveAuthToken(extracted)
                                                                 onAuthSuccess()
@@ -233,12 +248,21 @@ fun AuthScreen(
                                     val c3 = cm.getCookie(currentUrl) ?: ""
                                     val allCookies = "$c1; $c2; $c3"
 
-                                    val token = detectedWebToken ?: extractValidTokenFromCookies(allCookies)
-                                    coroutineScope.launch {
-                                        if (!token.isNullOrBlank()) {
+                                    val token = detectedWebToken?.takeIf { TokenUtils.isTokenValidAndNotExpired(it) }
+                                        ?: TokenUtils.extractValidTokenFromCookies(allCookies)
+
+                                    if (token != null) {
+                                        cm.flush()
+                                        coroutineScope.launch {
                                             viewModel.saveAuthToken(token)
+                                            onAuthSuccess()
                                         }
-                                        onAuthSuccess()
+                                    } else {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "Сессия ещё не готова. Пожалуйста, выполните вход на mos.ru.",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
                                     }
                                 },
                                 modifier = Modifier
@@ -833,15 +857,4 @@ private fun WelcomeFeatureRow(
     }
 }
 
-private fun extractValidTokenFromCookies(cookies: String): String? {
-    val map = cookies.split(";").mapNotNull {
-        val parts = it.split("=")
-        if (parts.size >= 2) parts[0].trim() to parts.subList(1, parts.size).joinToString("=").trim() else null
-    }.toMap()
 
-    val token = map["auth_token"]?.takeIf { it.isNotBlank() && it.length > 20 }
-        ?: map["mes_session"]?.takeIf { it.isNotBlank() && it.length > 20 }
-        ?: map["aupd_token"]?.takeIf { it.isNotBlank() && it.length > 20 }
-
-    return token
-}

@@ -429,7 +429,8 @@ data class AcademicClassRankItem(
     val imageId: Int? = null,
     val displayName: String = "",
     val gamificationId: String = "",
-    val profileId: Long = 0L
+    val profileId: Long = 0L,
+    val lessonMark: Int? = null
 )
 
 data class ClassRankDetail(

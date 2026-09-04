@@ -52,6 +52,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.mesh.expressive.data.local.SessionManager
 import ru.mesh.expressive.data.repository.MeshRepository
+import ru.mesh.expressive.ui.components.BackgroundTokenRefreshWebView
+import ru.mesh.expressive.ui.components.TokenRefreshOverlay
+import ru.mesh.expressive.ui.components.ReAuthDialog
 import ru.mesh.expressive.ui.components.expressiveBounceClick
 import ru.mesh.expressive.ui.screens.*
 import ru.mesh.expressive.ui.theme.*
@@ -154,6 +157,9 @@ fun MeshMainApp(
     val currentTab by viewModel.currentTab.collectAsState()
     val isGiftSendActive by viewModel.isGiftSendActive.collectAsState()
     val showOnboardingGuide by viewModel.showOnboardingGuide.collectAsState()
+    val isTokenRefreshing by viewModel.isTokenRefreshing.collectAsState()
+    val isTokenRefreshOverlayDismissed by viewModel.isTokenRefreshOverlayDismissed.collectAsState()
+    val showReAuthDialog by viewModel.showReAuthDialog.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val profile by viewModel.studentProfile.collectAsState()
@@ -708,6 +714,32 @@ fun MeshMainApp(
                 profileRect = profileTargetRect,
                 dockRect = dockTargetRect,
                 onDismiss = { viewModel.completeOnboardingGuide() }
+            )
+        }
+
+        if (isTokenRefreshing) {
+            BackgroundTokenRefreshWebView(
+                onTokenAcquired = { newToken ->
+                    viewModel.onTokenRefreshSuccess(newToken)
+                },
+                onError = {
+                    viewModel.onTokenRefreshFailed()
+                }
+            )
+            if (!isTokenRefreshOverlayDismissed) {
+                TokenRefreshOverlay(
+                    onDismiss = { viewModel.dismissTokenRefreshOverlay() }
+                )
+            }
+        }
+
+        if (showReAuthDialog) {
+            ReAuthDialog(
+                onDismiss = { viewModel.dismissReAuthDialog() },
+                onReAuth = {
+                    viewModel.dismissReAuthDialog()
+                    viewModel.selectTab(MainTab.AUTH)
+                }
             )
         }
     }

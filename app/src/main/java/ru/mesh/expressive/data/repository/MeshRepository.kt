@@ -6,7 +6,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -306,6 +308,9 @@ class MeshRepository(private val sessionManager: SessionManager) {
     private val _academicClassRanks = MutableStateFlow<List<AcademicClassRankItem>>(emptyList())
     val academicClassRanks: StateFlow<List<AcademicClassRankItem>> = _academicClassRanks.asStateFlow()
 
+    private val _cachedSubjectRanksMap = java.util.concurrent.ConcurrentHashMap<Long, List<AcademicClassRankItem>>()
+    private val _cachedLessonRanksMap = java.util.concurrent.ConcurrentHashMap<String, List<AcademicClassRankItem>>()
+
     private val _mealsBalance = MutableStateFlow(MealsBalance())
     val mealsBalance: StateFlow<MealsBalance> = _mealsBalance.asStateFlow()
 
@@ -327,7 +332,19 @@ class MeshRepository(private val sessionManager: SessionManager) {
     private val _isOffline = MutableStateFlow(false)
     val isOffline: StateFlow<Boolean> = _isOffline.asStateFlow()
 
+    private val _unauthorizedEvent = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val unauthorizedEvent: kotlinx.coroutines.flow.SharedFlow<Unit> = _unauthorizedEvent.asSharedFlow()
+
+    fun notifyUnauthorized() {
+        if (sessionManager.isLoggedIn) {
+            _unauthorizedEvent.tryEmit(Unit)
+        }
+    }
+
     init {
+        MeshNetworkClient.onUnauthorizedListener = {
+            notifyUnauthorized()
+        }
         if (sessionManager.isLoggedIn) {
             loadCachedData()
             CoroutineScope(Dispatchers.IO).launch {
@@ -339,10 +356,22 @@ class MeshRepository(private val sessionManager: SessionManager) {
     }
 
     fun calculateLiveGpa(showWeighted: Boolean = sessionManager.showWeightedGpa): Double {
-        val valid = _subjectSummaries.value
-            .map { it.getEffectiveAverage(showWeighted) }
-            .filter { it > 0.0 }
-        return if (valid.isNotEmpty()) valid.average() else _studentProfile.value.gpa
+        val allMarks = _subjectSummaries.value.flatMap { it.marks }
+        if (allMarks.isNotEmpty()) {
+            return if (showWeighted) {
+                val totalWeight = allMarks.sumOf { it.weight }
+                if (totalWeight > 0.0) {
+                    allMarks.sumOf { it.value * it.weight } / totalWeight
+                } else {
+                    allMarks.map { it.value }.average()
+                }
+            } else {
+                allMarks.map { it.value }.average()
+            }
+        }
+        val validSubjAvgs = _subjectSummaries.value.map { it.averageMark }.filter { it > 0.0 }
+        if (validSubjAvgs.isNotEmpty()) return validSubjAvgs.average()
+        return _studentProfile.value.gpa
     }
 
     private fun reconcileAndRankItems(
@@ -391,10 +420,15 @@ class MeshRepository(private val sessionManager: SessionManager) {
     }
 
     fun refreshLiveGpaAndRating() {
+        val liveGpa = calculateLiveGpa(sessionManager.showWeightedGpa)
+        if (liveGpa > 0.0) {
+            val updated = _studentProfile.value.copy(gpa = liveGpa)
+            _studentProfile.value = updated
+            sessionManager.cachedProfile = updated
+        }
         val cachedRanks = _academicClassRanks.value
         if (cachedRanks.isNotEmpty()) {
             val myGuid = sessionManager.cachedProfile?.contingentGuid.orEmpty()
-            val liveGpa = calculateLiveGpa(sessionManager.showWeightedGpa)
             val reconciled = reconcileAndRankItems(cachedRanks, myGuid, liveGpa)
             _academicClassRanks.value = reconciled
             sessionManager.cachedAcademicClassRanks = reconciled
@@ -498,6 +532,10 @@ class MeshRepository(private val sessionManager: SessionManager) {
         }
 
         val cleanToken = if (rawToken.startsWith("Bearer ")) rawToken.substring(7) else rawToken
+        if (ru.mesh.expressive.data.local.TokenUtils.isJwtExpired(cleanToken)) {
+            notifyUnauthorized()
+            return@withContext
+        }
         val bearerToken = "Bearer $cleanToken"
 
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -838,13 +876,16 @@ class MeshRepository(private val sessionManager: SessionManager) {
                         _subjectSummaries.value = summaries
                         sessionManager.cachedSubjectSummaries = summaries
 
-                        val validGpas = summaries.map { it.averageMark }.filter { it > 0.0 }
-                        if (validGpas.isNotEmpty()) {
-                            val overallGpa = validGpas.average()
-                            val updatedProfile = _studentProfile.value.copy(gpa = overallGpa)
-                            _studentProfile.value = updatedProfile
-                            sessionManager.cachedProfile = updatedProfile
+                        val allLoadedMarks = summaries.flatMap { it.marks }
+                        val overallGpa = if (allLoadedMarks.isNotEmpty()) {
+                            allLoadedMarks.map { it.value }.average()
+                        } else {
+                            val validGpas = summaries.map { it.averageMark }.filter { it > 0.0 }
+                            if (validGpas.isNotEmpty()) validGpas.average() else _studentProfile.value.gpa
                         }
+                        val updatedProfile = _studentProfile.value.copy(gpa = overallGpa)
+                        _studentProfile.value = updatedProfile
+                        sessionManager.cachedProfile = updatedProfile
                     }
                 } else if (rawMarksMap.isNotEmpty()) {
                     val rawMarks = rawMarksMap.values.toList()
@@ -2003,9 +2044,205 @@ class MeshRepository(private val sessionManager: SessionManager) {
                 }
 
                 val reconciledItems = reconcileAndRankItems(allItems, effectiveGuid, liveSubjAvg)
+                if (subjectId != null) {
+                    _cachedSubjectRanksMap[subjectId] = reconciledItems
+                }
                 return@withContext reconciledItems
             }
         } catch (_: Exception) {}
+
+        val cached = if (subjectId != null) _cachedSubjectRanksMap[subjectId] else null
+        if (!cached.isNullOrEmpty()) {
+            return@withContext reconcileAndRankItems(cached, effectiveGuid, liveSubjAvg)
+        }
+        if (liveSubjAvg > 0.0) {
+            val myItem = AcademicClassRankItem(
+                rankPlace = 1,
+                averageMark = liveSubjAvg,
+                rankStatus = "stable",
+                isCurrentUser = true,
+                personId = effectiveGuid,
+                imageId = null,
+                displayName = "${_studentProfile.value.lastName} ${_studentProfile.value.firstName} (Вы)",
+                gamificationId = _gamificationProfile.value.gamificationId.orEmpty(),
+                profileId = dynamicProfileId
+            )
+            return@withContext listOf(myItem)
+        }
+        emptyList()
+    }
+
+    suspend fun fetchLessonClassRank(lesson: LessonScheduleItem): List<AcademicClassRankItem> = withContext(Dispatchers.IO) {
+        val token = sessionManager.authToken ?: return@withContext emptyList()
+        val bearerToken = if (token.startsWith("Bearer ")) token else "Bearer $token"
+        val effectiveGuid = sessionManager.cachedProfile?.contingentGuid
+            ?: _studentProfile.value.contingentGuid.ifBlank { "3473f068-8ec0-47a1-920a-a18e75d6c389" }
+        val effectiveClassUnitId = if (_studentProfile.value.classUnitId > 0) _studentProfile.value.classUnitId else sessionManager.classUnitId
+        val lessonDate = lesson.date.ifBlank {
+            lesson.markCreatedAt?.take(10) ?: SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        }
+        val cacheKey = "${lessonDate}_${lesson.subjectId}_${lesson.subject}_${lesson.id}"
+        val dynamicProfileId = sessionManager.profileId.toLongOrNull() ?: 0L
+        val userLessonMark = lesson.mark ?: 0
+
+        _cachedLessonRanksMap[cacheKey]?.let { return@withContext it }
+
+        try {
+            var rankList: List<ClassRankPersonItem>? = null
+            if (lesson.subjectId > 0) {
+                val subjResp = MeshNetworkClient.ratingApi.getClassRank(
+                    token = bearerToken,
+                    subsystem = "familymp",
+                    clientType = "diary-mobile",
+                    personId = effectiveGuid,
+                    classUnitId = effectiveClassUnitId,
+                    date = lessonDate,
+                    subjectId = lesson.subjectId
+                )
+                if (subjResp.isSuccessful && !subjResp.body().isNullOrEmpty()) {
+                    rankList = subjResp.body()
+                }
+            }
+
+            if (rankList.isNullOrEmpty()) {
+                val dateResp = MeshNetworkClient.ratingApi.getClassRank(
+                    token = bearerToken,
+                    subsystem = "familymp",
+                    clientType = "diary-mobile",
+                    personId = effectiveGuid,
+                    classUnitId = effectiveClassUnitId,
+                    date = lessonDate,
+                    subjectId = null
+                )
+                if (dateResp.isSuccessful && dateResp.body() != null) {
+                    rankList = dateResp.body()
+                }
+            }
+
+            if (!rankList.isNullOrEmpty()) {
+                val classmatesMap = _classmates.value.associateBy { it.profileId }
+                val classmatesGamifMap = _classmates.value.associateBy { it.gamificationId }
+                val cachedRanksMap = _academicClassRanks.value.associateBy { it.personId }
+
+                val items = coroutineScope {
+                    rankList.map { item ->
+                        async(Dispatchers.IO) {
+                            val isMe = item.personId.equals(effectiveGuid, ignoreCase = true)
+                            val guid = item.personId.orEmpty()
+
+                            val existing = cachedRanksMap[guid]
+                            var name = existing?.displayName ?: ""
+                            var gamifId = existing?.gamificationId ?: ""
+                            var pid = existing?.profileId ?: 0L
+
+                            if (isMe) {
+                                name = "${_studentProfile.value.lastName} ${_studentProfile.value.firstName} (Вы)"
+                                gamifId = _gamificationProfile.value.gamificationId.orEmpty()
+                                pid = dynamicProfileId
+                            } else if (name.isBlank() && guid.isNotBlank()) {
+                                try {
+                                    val profResp = MeshNetworkClient.gamificationApi.getGamificationProfile(
+                                        token = bearerToken,
+                                        profileId = dynamicProfileId,
+                                        subsystem = "familymp",
+                                        clientType = "diary-mobile",
+                                        personId = guid
+                                    )
+                                    if (profResp.isSuccessful && profResp.body() != null) {
+                                        val p = profResp.body()!!
+                                        val fn = p.firstName.orEmpty()
+                                        val ln = p.lastName.orEmpty()
+                                        gamifId = p.gamificationId.orEmpty()
+                                        pid = p.id ?: 0L
+
+                                        val cm = classmatesMap[pid] ?: classmatesGamifMap[gamifId]
+                                        val fullLn = cm?.lastName?.ifBlank { ln } ?: ln
+                                        name = if (fn.isNotBlank()) "$fn $fullLn".trim() else ""
+                                    }
+                                } catch (_: Exception) {}
+                            }
+
+                            val serverAvg = item.rank?.averageMarkFive ?: 0.0
+                            val assignedMark: Int? = when {
+                                isMe && userLessonMark > 0 -> userLessonMark
+                                serverAvg >= 4.5 -> 5
+                                serverAvg >= 3.5 -> 4
+                                serverAvg >= 2.5 -> 3
+                                serverAvg > 0.0 -> 2
+                                else -> null
+                            }
+                            val finalScore = if (isMe && userLessonMark > 0) userLessonMark.toDouble() else serverAvg
+
+                            AcademicClassRankItem(
+                                rankPlace = item.rank?.rankPlace ?: 1,
+                                averageMark = finalScore,
+                                rankStatus = item.rank?.rankStatus ?: "stable",
+                                isCurrentUser = isMe,
+                                personId = guid,
+                                imageId = item.imageId,
+                                displayName = name,
+                                gamificationId = gamifId,
+                                profileId = pid,
+                                lessonMark = assignedMark
+                            )
+                        }
+                    }.awaitAll()
+                }.mapIndexed { idx, it ->
+                    if (it.displayName.isBlank()) {
+                        it.copy(displayName = "Ученик ${idx + 1}")
+                    } else it
+                }
+
+                val allItems = if (items.none { it.isCurrentUser } && userLessonMark > 0) {
+                    val myItem = AcademicClassRankItem(
+                        rankPlace = 1,
+                        averageMark = userLessonMark.toDouble(),
+                        rankStatus = "stable",
+                        isCurrentUser = true,
+                        personId = effectiveGuid,
+                        imageId = null,
+                        displayName = "${_studentProfile.value.lastName} ${_studentProfile.value.firstName} (Вы)",
+                        gamificationId = _gamificationProfile.value.gamificationId.orEmpty(),
+                        profileId = dynamicProfileId,
+                        lessonMark = userLessonMark
+                    )
+                    items + myItem
+                } else {
+                    items
+                }
+
+                val distinctMarks = allItems
+                    .mapNotNull { it.lessonMark ?: it.averageMark.takeIf { a -> a > 0 }?.let { a -> Math.round(a).toInt() } }
+                    .distinct()
+                    .sortedDescending()
+                val placeByMark = distinctMarks.mapIndexed { idx, mark -> mark to (idx + 1) }.toMap()
+
+                val rankedItems = allItems.map { itm ->
+                    val m = itm.lessonMark ?: (Math.round(itm.averageMark).toInt().takeIf { itm.averageMark > 0 })
+                    val place = if (m != null) (placeByMark[m] ?: itm.rankPlace) else itm.rankPlace
+                    itm.copy(rankPlace = place)
+                }.sortedWith(compareBy({ it.rankPlace }, { -(it.lessonMark ?: 0) }, { -it.averageMark }))
+
+                _cachedLessonRanksMap[cacheKey] = rankedItems
+                return@withContext rankedItems
+            }
+        } catch (_: Exception) {}
+
+        if (userLessonMark > 0) {
+            val myItem = AcademicClassRankItem(
+                rankPlace = 1,
+                averageMark = userLessonMark.toDouble(),
+                rankStatus = "stable",
+                isCurrentUser = true,
+                personId = effectiveGuid,
+                imageId = null,
+                displayName = "${_studentProfile.value.lastName} ${_studentProfile.value.firstName} (Вы)",
+                gamificationId = _gamificationProfile.value.gamificationId.orEmpty(),
+                profileId = dynamicProfileId,
+                lessonMark = userLessonMark
+            )
+            return@withContext listOf(myItem)
+        }
         emptyList()
     }
 
