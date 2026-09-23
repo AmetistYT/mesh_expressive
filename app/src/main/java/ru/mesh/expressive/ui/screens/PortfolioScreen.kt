@@ -44,7 +44,6 @@ fun PortfolioScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
     ) {
         // Category Chips row
             Row(

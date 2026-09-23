@@ -7,7 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -83,10 +87,24 @@ fun LessonDetailBottomSheet(viewModel: MeshMainViewModel) {
                         }
                     }
 
-                    if (lesson.mark != null) {
+                    val hasMarkOrPoint = lesson.mark != null || lesson.isPoint || !lesson.rawMark.isNullOrBlank()
+                    if (hasMarkOrPoint) {
+                        val isPoint = lesson.isPoint || lesson.rawMark?.endsWith(".") == true || lesson.rawMark == "."
+                        val markText = when {
+                            !lesson.rawMark.isNullOrBlank() -> lesson.rawMark!!
+                            lesson.isPoint -> if (lesson.mark != null) "${lesson.mark}." else "•"
+                            lesson.mark != null -> "${lesson.mark}"
+                            else -> "•"
+                        }
+                        val (markBg, markFg) = when {
+                            isPoint -> ScoreOrangeContainer to ScoreOrange
+                            (lesson.mark ?: 0) >= 4 -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+                            else -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+                        }
+
                         Surface(
                             shape = CircleShape,
-                            color = if (lesson.mark >= 4) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+                            color = markBg,
                             modifier = Modifier
                                 .size(48.dp)
                                 .clickable {
@@ -95,10 +113,10 @@ fun LessonDetailBottomSheet(viewModel: MeshMainViewModel) {
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = "${lesson.mark}",
+                                    text = markText,
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (lesson.mark >= 4) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
+                                    color = markFg
                                 )
                             }
                         }
@@ -208,30 +226,117 @@ fun LessonDetailBottomSheet(viewModel: MeshMainViewModel) {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Test Materials Card (Only Tests!)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveCardShape,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Quiz,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.tertiary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Прикрепленные тесты",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
+                // Attached Files & Materials Card (не ЦДЗ)
+                if (lesson.fileMaterials.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressiveCardShape,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.AttachFile,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Прикрепленные файлы к уроку",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            lesson.fileMaterials.forEach { fileMat ->
+                                val fileUrl = fileMat.url
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                                        .then(
+                                            if (!fileUrl.isNullOrBlank()) {
+                                                Modifier.clickable {
+                                                    viewModel.downloadAttachment(context, fileUrl, fileMat.title, openAfterDownload = true)
+                                                }
+                                            } else Modifier
+                                        )
+                                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.Description,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = fileMat.title,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = fileMat.typeName,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    if (!fileUrl.isNullOrBlank()) {
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.downloadAttachment(context, fileUrl, fileMat.title, openAfterDownload = false)
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Download,
+                                                contentDescription = "Скачать",
+                                                modifier = Modifier.size(20.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        if (lesson.testMaterials.isNotEmpty()) {
+                    }
+                }
+
+                // Test Materials Card (Only Tests!)
+                if (lesson.testMaterials.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressiveCardShape,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Quiz,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.tertiary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Прикрепленные тесты (ЦДЗ)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             lesson.testMaterials.forEach { testMat ->
                                 Row(
                                     modifier = Modifier
@@ -266,19 +371,25 @@ fun LessonDetailBottomSheet(viewModel: MeshMainViewModel) {
                                     }
                                 }
                             }
-                        } else {
-                            Text(
-                                text = "Тестовых заданий к уроку не прикреплено",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
                         }
                     }
                 }
 
-                // If Mark exists, card to view Mark details and class rank
-                if (lesson.mark != null) {
+                // If Mark exists or is point, card to view Mark details and class statistics
+                val hasMarkCard = lesson.mark != null || lesson.isPoint || !lesson.rawMark.isNullOrBlank()
+                if (hasMarkCard) {
                     Spacer(modifier = Modifier.height(12.dp))
+                    val isPt = lesson.isPoint || lesson.rawMark?.endsWith(".") == true || lesson.rawMark == "."
+                    val displayMark = when {
+                        !lesson.rawMark.isNullOrBlank() -> lesson.rawMark!!
+                        isPt -> if (lesson.mark != null) "${lesson.mark}." else "•"
+                        lesson.mark != null -> "${lesson.mark}"
+                        else -> "•"
+                    }
+                    val formattedPtDate = if (isPt && !lesson.pointDate.isNullOrBlank()) {
+                        ru.mesh.expressive.util.DateUtils.formatPointDate(lesson.pointDate)
+                    } else null
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -287,7 +398,7 @@ fun LessonDetailBottomSheet(viewModel: MeshMainViewModel) {
                             },
                         shape = ExpressiveCardShape,
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            containerColor = if (isPt) ScoreOrangeContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                         )
                     ) {
                         Row(
@@ -298,24 +409,50 @@ fun LessonDetailBottomSheet(viewModel: MeshMainViewModel) {
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Оценка: ${lesson.mark}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (isPt) "Точка: $displayMark" else "Оценка: $displayMark",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isPt) ScoreOrange else MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    if (isPt) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            shape = PillShape,
+                                            color = ScoreOrange
+                                        ) {
+                                            Text(
+                                                text = "Временная",
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                }
                                 val form = lesson.markControlForm ?: "Ответ на уроке"
                                 Text(
                                     text = "Форма: $form • Вес: ${lesson.markWeight}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                if (!formattedPtDate.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Выставляется до $formattedPtDate",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = ScoreOrange
+                                    )
+                                }
                             }
                             FilledTonalButton(
                                 onClick = { viewModel.openMarkDetails(lesson) },
                                 shape = PillShape
                             ) {
-                                Text("Рейтинг и дата", style = MaterialTheme.typography.labelSmall)
+                                Text("Статистика", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -329,11 +466,33 @@ fun LessonDetailBottomSheet(viewModel: MeshMainViewModel) {
 @Composable
 fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
     val selectedMarkLesson by viewModel.selectedMarkLesson.collectAsState()
+    val detailedMark by viewModel.selectedMarkDetailed.collectAsState()
+    val isDetailedLoading by viewModel.isMarkDetailedLoading.collectAsState()
     val ranks by viewModel.markSubjectRanks.collectAsState()
     val isRanksLoading by viewModel.isMarkSubjectRanksLoading.collectAsState()
 
     if (selectedMarkLesson != null) {
         val lesson = selectedMarkLesson!!
+        val isPoint = lesson.isPoint || (detailedMark?.isPoint == true) || lesson.rawMark?.endsWith(".") == true || (detailedMark?.value?.endsWith(".") == true) || lesson.rawMark == "."
+        val pointDateRaw = detailedMark?.pointDate ?: lesson.pointDate
+        val formattedPointDate = ru.mesh.expressive.util.DateUtils.formatPointDate(pointDateRaw)
+
+        val rawVal = detailedMark?.value ?: lesson.rawMark
+        val displayVal = when {
+            !rawVal.isNullOrBlank() -> rawVal
+            isPoint -> if (lesson.mark != null) "${lesson.mark}." else "•"
+            lesson.mark != null -> "${lesson.mark}"
+            else -> "—"
+        }
+
+        val myMarkNumeric = lesson.mark ?: displayVal.removeSuffix(".").toIntOrNull()
+
+        val (markBadgeBg, markBadgeFg) = when {
+            isPoint -> ScoreOrangeContainer to ScoreOrange
+            (myMarkNumeric ?: 0) >= 4 -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+            else -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        }
+
         ModalBottomSheet(
             onDismissRequest = { viewModel.closeMarkDetails() },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -344,9 +503,10 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .navigationBarsPadding()
                     .padding(horizontal = 20.dp)
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = 28.dp)
             ) {
                 // Grade & Subject header
                 Row(
@@ -355,34 +515,53 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = if ((lesson.mark ?: 0) >= 4) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+                        color = markBadgeBg,
                         modifier = Modifier.size(56.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
-                                text = "${lesson.mark ?: "—"}",
+                                text = displayVal,
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if ((lesson.mark ?: 0) >= 4) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
+                                color = markBadgeFg
                             )
                         }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = lesson.subject,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        val form = lesson.markControlForm ?: "Ответ на уроке"
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = lesson.subject,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (isPoint) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    shape = PillShape,
+                                    color = ScoreOrange
+                                ) {
+                                    Text(
+                                        text = "Точка",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        val form = detailedMark?.controlFormName ?: lesson.markControlForm ?: "Ответ на уроке"
                         Text(
                             text = "Форма контроля: $form",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        val weightVal = detailedMark?.weight ?: lesson.markWeight
                         Text(
-                            text = "Вес оценки: ${lesson.markWeight}",
+                            text = "Вес оценки: $weightVal",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
@@ -390,8 +569,48 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     }
                 }
 
+                // If it is a point, display info card with point expiration date
+                if (isPoint) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressiveCardShape,
+                        colors = CardDefaults.cardColors(
+                            containerColor = ScoreOrangeContainer.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.HourglassTop,
+                                contentDescription = null,
+                                tint = ScoreOrange,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = if (formattedPointDate.isNotBlank()) "Будет выставлена: $formattedPointDate" else "Временная отметка (точка)",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ScoreOrange
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Пока оценка не выставлена окончательно, есть возможность сдать работу или улучшить оценку.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Teacher comment if present
-                if (!lesson.markComment.isNullOrBlank()) {
+                val commentText = detailedMark?.comment ?: lesson.markComment
+                if (!commentText.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Surface(
                         shape = ExpressiveCardShape,
@@ -407,7 +626,7 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = lesson.markComment,
+                                text = commentText,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -415,9 +634,10 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     }
                 }
 
-                // Date and time with exact seconds precision and relative day
+                // Date and time
                 Spacer(modifier = Modifier.height(12.dp))
-                val formattedDate = ru.mesh.expressive.util.DateUtils.formatRelativeDateTime(lesson.markCreatedAt ?: lesson.date)
+                val rawCreatedAt = detailedMark?.createdAt ?: lesson.markCreatedAt ?: lesson.date
+                val formattedDate = ru.mesh.expressive.util.DateUtils.formatRelativeDateTime(rawCreatedAt)
                 if (formattedDate.isNotBlank()) {
                     Surface(
                         shape = ExpressiveCardShape,
@@ -442,27 +662,43 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // Class Rank Section
+                // Class Results Section (Оценки класса за эту работу)
+                val distributions = detailedMark?.classResults?.marksDistributions.orEmpty()
+                val totalStudents = detailedMark?.classResults?.totalStudents ?: distributions.sumOf { it.numberOfStudents ?: 0 }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Рейтинг класса за урок",
+                        text = if (distributions.isNotEmpty()) "Оценки класса за работу" else "Рейтинг класса за урок",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    if (ranks.isNotEmpty()) {
+                    if (distributions.isNotEmpty() && totalStudents > 0) {
                         Surface(
                             shape = PillShape,
                             color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
-                                text = "${ranks.size} учеников",
+                                text = "$totalStudents ${if (totalStudents % 10 == 1 && totalStudents % 100 != 11) "оценка" else "оценок"}",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else if (ranks.isNotEmpty()) {
+                        Surface(
+                            shape = PillShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                text = "${ranks.size} уч.",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
@@ -472,9 +708,9 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                if (isRanksLoading) {
+                if (isDetailedLoading || isRanksLoading) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -486,44 +722,103 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                } else if (ranks.isEmpty()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ExpressiveCardShape,
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-                    ) {
-                        Text(
-                            text = "За этот урок оценки ещё не выставлены другим ученикам",
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 280.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        itemsIndexed(ranks) { _, item ->
-                            val isMe = item.isCurrentUser
-                            val markVal = item.lessonMark ?: when {
-                                item.averageMark >= 4.5 -> 5
-                                item.averageMark >= 3.5 -> 4
-                                item.averageMark >= 2.5 -> 3
-                                item.averageMark > 0.0 -> 2
-                                else -> null
-                            }
+                } else if (distributions.isNotEmpty()) {
+                    // Official class mark distribution
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val sortedDist = distributions.sortedByDescending { it.markValue?.five ?: 0 }
+                        sortedDist.forEach { dist ->
+                            val markVal = dist.markValue?.five ?: 0
+                            val count = dist.numberOfStudents ?: 0
+                            val pct = (dist.percentageOfStudents ?: 0).toFloat()
+                            val isMyGrade = myMarkNumeric != null && myMarkNumeric == markVal
 
-                            val (badgeBg, badgeText) = when (markVal) {
+                            val (gradeBg, gradeFg) = when (markVal) {
                                 5 -> ScoreGreenContainer to ScoreGreen
                                 4 -> ScoreBlueContainer to ScoreBlue
                                 3 -> ScoreOrangeContainer to ScoreOrange
-                                2 -> ScoreRedContainer to ScoreRed
-                                else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+                                else -> ScoreRedContainer to ScoreRed
                             }
 
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = ExpressiveCardShape,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isMyGrade) gradeBg.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceContainerLow
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = gradeBg,
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "$markVal",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = gradeFg
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Text(
+                                                text = "$count ${if (count % 10 == 1 && count % 100 != 11) "ученик" else if (count % 10 in 2..4 && (count % 100 !in 12..14)) "ученика" else "учеников"}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (isMyGrade) {
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(
+                                                    shape = PillShape,
+                                                    color = gradeFg
+                                                ) {
+                                                    Text(
+                                                        text = "Ваша оценка",
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Text(
+                                            text = "${pct.toInt()}%",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = gradeFg
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    LinearProgressIndicator(
+                                        progress = (pct / 100f).coerceIn(0f, 1f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp)),
+                                        color = gradeFg,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (ranks.isNotEmpty()) {
+                    // Fallback to classmates academic ranking without fake lesson marks
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ranks.forEach { item ->
+                            val isMe = item.isCurrentUser
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = ExpressiveCardShape,
@@ -574,21 +869,36 @@ fun MarkDetailBottomSheet(viewModel: MeshMainViewModel) {
                                             }
                                         }
                                     }
-                                    Surface(
-                                        shape = PillShape,
-                                        color = badgeBg
-                                    ) {
-                                        Text(
-                                            text = if (markVal != null) "$markVal" else if (item.averageMark > 0.0) String.format(java.util.Locale.US, "%.1f", item.averageMark) else "—",
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = badgeText
-                                        )
+                                    if (item.averageMark > 0.0) {
+                                        Surface(
+                                            shape = PillShape,
+                                            color = MaterialTheme.colorScheme.surfaceVariant
+                                        ) {
+                                            Text(
+                                                text = "ср. ${String.format(java.util.Locale.US, "%.2f", item.averageMark)}",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressiveCardShape,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        Text(
+                            text = "Оценки других учеников класса за эту работу ещё не выставлены",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

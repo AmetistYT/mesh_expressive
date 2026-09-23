@@ -49,6 +49,56 @@ fun DashboardScreen(
     val isCompactSchedule by viewModel.isCompactSchedule.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
+    val nextSchoolDayInfo = remember {
+        val cal = java.util.Calendar.getInstance()
+        val dow = cal.get(java.util.Calendar.DAY_OF_WEEK)
+        val daysToAdd = when (dow) {
+            java.util.Calendar.FRIDAY -> 3
+            java.util.Calendar.SATURDAY -> 2
+            java.util.Calendar.SUNDAY -> 1
+            else -> 1
+        }
+        val targetCal = (cal.clone() as java.util.Calendar).apply {
+            add(java.util.Calendar.DAY_OF_MONTH, daysToAdd)
+        }
+        val sdfIso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val sdfReadable = java.text.SimpleDateFormat("d MMMM", java.util.Locale("ru"))
+        val sdfTomorrow = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(
+            java.util.Date(System.currentTimeMillis() + 86400000L)
+        )
+        val isWeekendJump = dow == java.util.Calendar.FRIDAY || dow == java.util.Calendar.SATURDAY || dow == java.util.Calendar.SUNDAY
+        val dayTitle = if (isWeekendJump) "на понедельник" else "на завтра"
+        val tomorrowFormatted = java.text.SimpleDateFormat("d MMMM", java.util.Locale("ru")).format(
+            java.util.Date(System.currentTimeMillis() + 86400000L)
+        )
+        Triple(
+            Triple(sdfIso.format(targetCal.time), sdfReadable.format(targetCal.time), sdfTomorrow),
+            tomorrowFormatted,
+            dayTitle
+        )
+    }
+
+    val (dateTriples, tomorrowFormatted, dayTitle) = nextSchoolDayInfo
+    val (targetIso, targetReadable, tomorrowIso) = dateTriples
+
+    val tomorrowHw = remember(homeworkList, targetIso, tomorrowIso, targetReadable, tomorrowFormatted) {
+        homeworkList.filter { hw ->
+            !hw.isDone && (
+                // 1. Задано к уроку на целевой день (на завтра / понедельник)
+                (hw.rawTargetDate.isNotBlank() && (hw.rawTargetDate == targetIso || hw.rawTargetDate == tomorrowIso)) ||
+                hw.targetDate == "Завтра" || hw.targetDate.equals(targetReadable, ignoreCase = true) ||
+                // 2. Либо дедлайн сдачи истекает на целевой день
+                (hw.rawDueDate.isNotBlank() && (hw.rawDueDate == targetIso || hw.rawDueDate == tomorrowIso)) ||
+                hw.dueDate == "Завтра" || hw.dueDate.equals(targetReadable, ignoreCase = true) ||
+                hw.dueDate.equals(tomorrowFormatted, ignoreCase = true)
+            )
+        }
+    }
+
+    val hasTomorrowHw = tomorrowHw.isNotEmpty()
+    val sectionTitle = if (hasTomorrowHw) "Домашка $dayTitle" else "Ближайшие задания"
+    val displayedHw = if (hasTomorrowHw) tomorrowHw.take(3) else homeworkList.filter { !it.isDone }.take(3)
+
     ExpressivePullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = { viewModel.refreshData() },
@@ -64,7 +114,7 @@ fun DashboardScreen(
         ) {
             // Demo Mode Banner
             if (!viewModel.isLoggedIn) {
-                item {
+                item(key = "demo_banner") {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -116,7 +166,7 @@ fun DashboardScreen(
             }
 
             // 1. Expressive Header
-            item {
+            item(key = "profile_header") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveHeroShape,
@@ -197,7 +247,7 @@ fun DashboardScreen(
         }
 
         // 2. Overview Row: GPA & Moskvionok Balance
-        item {
+        item(key = "overview_row") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -342,7 +392,7 @@ fun DashboardScreen(
         }
 
         // 4. Schedule Section with Segmented Toggle (Сегодня / Завтра)
-        item {
+        item(key = "schedule_header") {
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -368,7 +418,7 @@ fun DashboardScreen(
 
         val currentSchedule = if (dashboardDay == DashboardDay.TODAY) scheduleToday else scheduleTomorrow
         if (currentSchedule.isEmpty()) {
-            item {
+            item(key = "schedule_empty") {
                 ru.mesh.expressive.ui.components.ExpressiveEmptyState(
                     title = "Здесь ничего нет",
                     subtitle = "На выбранный день уроков в расписании нет",
@@ -376,7 +426,11 @@ fun DashboardScreen(
                 )
             }
         } else {
-            items(currentSchedule) { lesson ->
+            items(
+                items = currentSchedule,
+                key = { it.id.ifBlank { "${dashboardDay.name}_${it.lessonNumber}_${it.startTime}_${it.subject}" } },
+                contentType = { "lesson" }
+            ) { lesson ->
                 LessonCard(
                     lesson = lesson,
                     isCompact = isCompactSchedule,
@@ -385,8 +439,8 @@ fun DashboardScreen(
             }
         }
 
-        // 5. Homework for Tomorrow Section
-        item {
+
+        item(key = "homework_header") {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -394,7 +448,7 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Домашка на завтра",
+                    text = sectionTitle,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -406,17 +460,20 @@ fun DashboardScreen(
             }
         }
 
-        val tomorrowHw = homeworkList.take(3)
-        if (tomorrowHw.isEmpty()) {
-            item {
+        if (displayedHw.isEmpty()) {
+            item(key = "homework_empty") {
                 ru.mesh.expressive.ui.components.ExpressiveEmptyState(
                     title = "Здесь ничего нет",
-                    subtitle = "Домашних заданий не найдено",
+                    subtitle = if (homeworkList.isEmpty()) "Домашних заданий не найдено" else "Все задания выполнены",
                     icon = Icons.Default.CheckCircleOutline
                 )
             }
         } else {
-            items(tomorrowHw) { hw ->
+            items(
+                items = displayedHw,
+                key = { it.id },
+                contentType = { "homework" }
+            ) { hw ->
                 HomeworkCard(
                     homework = hw,
                     onClick = { viewModel.openHomeworkDetails(hw) },
@@ -426,7 +483,7 @@ fun DashboardScreen(
         }
 
         // Каникулы и учебные периоды внизу экрана
-        item {
+        item(key = "vacations_card") {
             Spacer(modifier = Modifier.height(6.dp))
             ru.mesh.expressive.ui.components.VacationsCard(viewModel = viewModel)
         }
@@ -474,11 +531,16 @@ fun LessonCard(
     onClick: (() -> Unit)? = null
 ) {
     if (isCompact) {
+        val compactShape = RoundedCornerShape(14.dp)
+        val compactColor = if (lesson.isOngoing)
+            MaterialTheme.colorScheme.primaryContainer
+        else
+            MaterialTheme.colorScheme.surfaceContainerLow
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-            shape = RoundedCornerShape(14.dp),
+            shape = compactShape,
             colors = CardDefaults.cardColors(
                 containerColor = if (lesson.isOngoing)
                     MaterialTheme.colorScheme.primaryContainer
@@ -535,18 +597,26 @@ fun LessonCard(
                         )
                     }
 
-                    if (lesson.mark != null) {
+                    val hasMark = lesson.mark != null || lesson.isPoint || !lesson.rawMark.isNullOrBlank()
+                    if (hasMark) {
+                        val isPt = lesson.isPoint || lesson.rawMark?.endsWith(".") == true || lesson.rawMark == "."
+                        val markText = when {
+                            !lesson.rawMark.isNullOrBlank() -> lesson.rawMark!!
+                            isPt -> if (lesson.mark != null) "${lesson.mark}." else "•"
+                            lesson.mark != null -> "${lesson.mark}"
+                            else -> "•"
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer
+                            color = if (isPt) ScoreOrangeContainer else MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Text(
-                                text = "${lesson.mark}",
+                                text = markText,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                color = if (isPt) ScoreOrange else MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
                     }
@@ -614,20 +684,29 @@ fun LessonCard(
                         )
                     }
 
-                    if (lesson.mark != null) {
+                    val hasDetailedMark = lesson.mark != null || lesson.isPoint || !lesson.rawMark.isNullOrBlank()
+                    if (hasDetailedMark) {
+                        val isPt = lesson.isPoint || lesson.rawMark?.endsWith(".") == true || lesson.rawMark == "."
+                        val markText = when {
+                            !lesson.rawMark.isNullOrBlank() -> lesson.rawMark!!
+                            isPt -> if (lesson.mark != null) "${lesson.mark}." else "•"
+                            lesson.mark != null -> "${lesson.mark}"
+                            else -> "•"
+                        }
+                        val prefix = if (isPt) "Точка: " else "Оценка: "
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer
+                            color = if (isPt) ScoreOrangeContainer else MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Оценка: ${lesson.mark}${if (lesson.markWeight > 1.0) " (вес ${lesson.markWeight.toInt()})" else ""}",
+                                    text = "$prefix$markText${if (lesson.markWeight > 1.0) " (вес ${lesson.markWeight.toInt()})" else ""}",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    color = if (isPt) ScoreOrange else MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             }
                         }
@@ -725,12 +804,44 @@ fun HomeworkCard(
             Spacer(modifier = Modifier.width(8.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = homework.subject,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = homework.subject,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    val hasDifferentDates = homework.rawTargetDate.isNotBlank() && homework.rawDueDate.isNotBlank() && homework.rawTargetDate != homework.rawDueDate
+                    val dateBadgeText = if (hasDifferentDates) {
+                        "На ${homework.targetDate} • До ${homework.dueDate}"
+                    } else {
+                        val displayDate = if (homework.targetDate.isNotBlank()) homework.targetDate else homework.dueDate
+                        if (displayDate.isNotBlank()) displayDate else ""
+                    }
+                    if (dateBadgeText.isNotBlank()) {
+                        val isUrgent = homework.dueDate == "Завтра" || homework.targetDate == "Завтра" || homework.dueDate == "Сегодня"
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = PillShape,
+                            color = if (isUrgent) ScoreOrangeContainer else MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                text = dateBadgeText,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isUrgent) ScoreOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                                softWrap = false,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
                 Text(
                     text = homework.description,
                     style = MaterialTheme.typography.bodyMedium,

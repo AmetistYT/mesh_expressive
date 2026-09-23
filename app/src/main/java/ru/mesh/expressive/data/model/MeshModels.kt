@@ -41,19 +41,26 @@ data class LessonScheduleItem(
     val isCanceled: Boolean = false,
     val attendanceStatus: AttendanceType = AttendanceType.PRESENT,
     val mark: Int? = null,
+    val rawMark: String? = null,
+    val isPoint: Boolean = false,
+    val pointDate: String? = null,
+    val markId: Long? = null,
     val markWeight: Double = 1.0,
     val markComment: String? = null,
     val markControlForm: String? = null,
     val markCreatedAt: String? = null,
     val homework: String? = null,
     val topic: String? = null,
-    val testMaterials: List<LessonMaterialItem> = emptyList()
+    val testMaterials: List<LessonMaterialItem> = emptyList(),
+    val fileMaterials: List<LessonMaterialItem> = emptyList()
 )
 
 data class LessonMaterialItem(
     val title: String,
     val typeName: String = "Тест",
-    val url: String? = null
+    val url: String? = null,
+    val sizeText: String? = null,
+    val isFile: Boolean = false
 )
 
 data class LessonDetailDTO(
@@ -86,7 +93,9 @@ data class LessonDetailMarkDTO(
     @SerializedName("weight") val weight: Double? = 1.0,
     @SerializedName("comment") val comment: String? = null,
     @SerializedName("control_form_name") val controlFormName: String? = null,
-    @SerializedName("created_at") val createdAt: String? = null
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("is_point") val isPoint: Boolean? = null,
+    @SerializedName("point_date") val pointDate: String? = null
 )
 
 data class LessonMaterialDTO(
@@ -145,6 +154,7 @@ data class SimpleMarkResponseDTO(
     @SerializedName("weight") val weight: Double? = null,
     @SerializedName("is_exam") val isExam: Boolean? = null,
     @SerializedName("is_point") val isPoint: Boolean? = null,
+    @SerializedName("point_date") val pointDate: String? = null,
     @SerializedName("control_form_name") val controlFormName: String? = null,
     @SerializedName("comment") val comment: String? = null,
     @SerializedName("created_at") val createdAt: String? = null
@@ -152,6 +162,36 @@ data class SimpleMarkResponseDTO(
 
 data class MarksResponseDTO(
     @SerializedName("payload") val payload: List<MarkByDateItemDTO>? = null
+)
+
+data class DetailedMarkResponseDTO(
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("value") val value: String? = null,
+    @SerializedName("weight") val weight: Double? = null,
+    @SerializedName("control_form_name") val controlFormName: String? = null,
+    @SerializedName("comment") val comment: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("date") val date: String? = null,
+    @SerializedName("is_point") val isPoint: Boolean? = null,
+    @SerializedName("point_date") val pointDate: String? = null,
+    @SerializedName("is_exam") val isExam: Boolean? = null,
+    @SerializedName("class_results") val classResults: ClassResultsDTO? = null
+)
+
+data class ClassResultsDTO(
+    @SerializedName("total_students") val totalStudents: Int? = null,
+    @SerializedName("marks_distributions") val marksDistributions: List<ClassMarksDistributionDTO>? = null
+)
+
+data class ClassMarksDistributionDTO(
+    @SerializedName("percentage_of_students") val percentageOfStudents: Int? = null,
+    @SerializedName("number_of_students") val numberOfStudents: Int? = null,
+    @SerializedName("mark_value") val markValue: DistributionMarkValueDTO? = null
+)
+
+data class DistributionMarkValueDTO(
+    @SerializedName("five") val five: Int? = null,
+    @SerializedName("origin") val origin: String? = null
 )
 
 data class HomeworksShortResponseDTO(
@@ -217,10 +257,13 @@ data class EventHomeworkDTO(
 )
 
 data class EventMarkDTO(
+    @SerializedName("id") val id: Long? = null,
     @SerializedName("value") val value: String? = null,
     @SerializedName("weight") val weight: Double? = 1.0,
     @SerializedName("comment") val comment: String? = null,
-    @SerializedName("is_exam") val isExam: Boolean? = false
+    @SerializedName("is_exam") val isExam: Boolean? = false,
+    @SerializedName("is_point") val isPoint: Boolean? = false,
+    @SerializedName("point_date") val pointDate: String? = null
 )
 
 data class SubjectMarksShortResponseDTO(
@@ -244,7 +287,9 @@ data class MarkWithDateDTO(
     @SerializedName("date") val date: String? = null,
     @SerializedName("control_form_name") val controlFormName: String? = null,
     @SerializedName("comment") val comment: String? = null,
-    @SerializedName("is_exam") val isExam: Boolean? = null
+    @SerializedName("is_exam") val isExam: Boolean? = null,
+    @SerializedName("is_point") val isPoint: Boolean? = null,
+    @SerializedName("point_date") val pointDate: String? = null
 )
 
 data class SubjectMarksPeriodItemDTO(
@@ -264,7 +309,9 @@ data class MarkByDateItemDTO(
     @SerializedName("control_form_name") val controlFormName: String? = null,
     @SerializedName("comment") val comment: String? = null,
     @SerializedName("created_at") val createdAt: String? = null,
-    @SerializedName("is_exam") val isExam: Boolean? = null
+    @SerializedName("is_exam") val isExam: Boolean? = null,
+    @SerializedName("is_point") val isPoint: Boolean? = null,
+    @SerializedName("point_date") val pointDate: String? = null
 )
 
 enum class AttendanceType {
@@ -294,7 +341,11 @@ data class HomeworkItem(
     val hasDigitalTest: Boolean = false,
     val digitalTestUrl: String? = null,
     val createdAt: String? = null,
-    val attachments: List<HomeworkAttachmentItem> = emptyList()
+    val attachments: List<HomeworkAttachmentItem> = emptyList(),
+    val rawDueDate: String = "",
+    val rawTargetDate: String = "",
+    val targetDate: String = "",
+    val assignedDate: String = ""
 )
 
 /**
@@ -305,6 +356,9 @@ data class MarkItem(
     val subject: String = "",
     val subjectId: Long = 0L,
     val value: Int = 5,
+    val rawValue: String = "5",
+    val isPoint: Boolean = false,
+    val pointDate: String? = null,
     val weight: Double = 1.0,
     val date: String = "",
     val topic: String = "",
@@ -326,14 +380,15 @@ data class SubjectSummary(
     val teacher: String = "Учитель предмета"
 ) {
     fun getEffectiveAverage(showWeighted: Boolean): Double {
-        if (marks.isEmpty()) return averageMark
+        val validMarks = marks.filter { !it.isPoint && it.value in 2..5 }
+        if (validMarks.isEmpty()) return averageMark
         return if (showWeighted) {
-            val totalWeight = marks.sumOf { it.weight }
+            val totalWeight = validMarks.sumOf { it.weight }
             if (totalWeight > 0.0) {
-                marks.sumOf { it.value * it.weight } / totalWeight
+                validMarks.sumOf { it.value * it.weight } / totalWeight
             } else averageMark
         } else {
-            marks.map { it.value }.average()
+            validMarks.map { it.value }.average()
         }
     }
 }

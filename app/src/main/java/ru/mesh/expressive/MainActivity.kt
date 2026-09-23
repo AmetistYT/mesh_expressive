@@ -26,9 +26,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.border
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -55,6 +58,7 @@ import ru.mesh.expressive.data.repository.MeshRepository
 import ru.mesh.expressive.ui.components.BackgroundTokenRefreshWebView
 import ru.mesh.expressive.ui.components.TokenRefreshOverlay
 import ru.mesh.expressive.ui.components.ReAuthDialog
+
 import ru.mesh.expressive.ui.components.expressiveBounceClick
 import ru.mesh.expressive.ui.screens.*
 import ru.mesh.expressive.ui.theme.*
@@ -164,6 +168,7 @@ fun MeshMainApp(
     val coroutineScope = rememberCoroutineScope()
     val profile by viewModel.studentProfile.collectAsState()
     val view = LocalView.current
+    val context = LocalContext.current
 
     // Dock tabs that support horizontal swipe gestures
     val dockTabs = remember {
@@ -263,8 +268,12 @@ fun MeshMainApp(
     var menuTargetRect by remember { mutableStateOf<Rect?>(null) }
     var profileTargetRect by remember { mutableStateOf<Rect?>(null) }
     var dockTargetRect by remember { mutableStateOf<Rect?>(null) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
 
-    Box(modifier = Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = !isScrubbing,
@@ -519,7 +528,8 @@ fun MeshMainApp(
                     Surface(
                         shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
                         color = MaterialTheme.colorScheme.surfaceContainer,
-                        shadowElevation = 3.dp
+                        shadowElevation = 3.dp,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         CenterAlignedTopAppBar(
                             title = {
@@ -585,7 +595,7 @@ fun MeshMainApp(
                                     Box(
                                         modifier = Modifier
                                             .size(36.dp)
-                                            .clip(M3Cookie7Shape(7))
+                                             .clip(M3Cookie7Shape(7))
                                             .background(MaterialTheme.colorScheme.primaryContainer),
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -624,10 +634,11 @@ fun MeshMainApp(
             },
             containerColor = MaterialTheme.colorScheme.surface
         ) { paddingValues ->
+            val topPad = if (currentTab == MainTab.AUTH || isGiftSendActive) 0.dp else paddingValues.calculateTopPadding()
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = if (currentTab == MainTab.AUTH || isGiftSendActive) 0.dp else paddingValues.calculateTopPadding())
+                    .padding(top = topPad)
             ) {
                 if (isGiftSendActive) {
                     GiftSendScreen(viewModel = viewModel)
@@ -698,9 +709,8 @@ fun MeshMainApp(
                             .onGloballyPositioned { dockTargetRect = it.boundsInRoot() }
                     )
                 }
-
-                }
             }
+        }
         }
 
         ru.mesh.expressive.ui.components.LessonDetailBottomSheet(viewModel = viewModel)

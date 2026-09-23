@@ -80,4 +80,24 @@ object DateUtils {
             isoDateTimeStr
         }
     }
+
+    /**
+     * Форматирует дату фиксации оценки с точкой в читаемый русский вид (например: "28 сентября" или "28 сентября 2026").
+     */
+    fun formatPointDate(isoDateStr: String?): String {
+        if (isoDateStr.isNullOrBlank()) return ""
+        return try {
+            val clean = isoDateStr.substringBefore("T").substringBefore(" ").trim()
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val date = sdf.parse(clean) ?: return clean
+
+            val cal = Calendar.getInstance().apply { time = date }
+            val now = Calendar.getInstance()
+            val pattern = if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)) "d MMMM" else "d MMMM yyyy"
+            val ruFormat = SimpleDateFormat(pattern, Locale("ru"))
+            ruFormat.format(date)
+        } catch (_: Exception) {
+            isoDateStr
+        }
+    }
 }

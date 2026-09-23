@@ -15,6 +15,10 @@ class SessionManager(context: Context) {
         get() = prefs.getString("auth_token", null)
         set(value) = prefs.edit().putString("auth_token", value).apply()
 
+    var jwtToken: String?
+        get() = authToken
+        set(value) { authToken = value }
+
     var personId: Long
         get() = prefs.getLong("person_id", 0L)
         set(value) = prefs.edit().putLong("person_id", value).apply()
@@ -61,6 +65,7 @@ class SessionManager(context: Context) {
     var enableSpringPhysics: Boolean
         get() = prefs.getBoolean("enable_spring_physics", true)
         set(value) = prefs.edit().putBoolean("enable_spring_physics", value).apply()
+
 
     var hideEmptyScheduleDays: Boolean
         get() = prefs.getBoolean("hide_empty_schedule_days", false)

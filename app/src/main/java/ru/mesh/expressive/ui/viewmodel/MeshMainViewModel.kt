@@ -6,7 +6,11 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
 import ru.mesh.expressive.data.local.SessionManager
 import ru.mesh.expressive.data.model.*
 import ru.mesh.expressive.data.repository.AutoCompleteResult
@@ -455,6 +459,12 @@ class MeshMainViewModel(
     private val _selectedMarkLesson = MutableStateFlow<LessonScheduleItem?>(null)
     val selectedMarkLesson: StateFlow<LessonScheduleItem?> = _selectedMarkLesson.asStateFlow()
 
+    private val _selectedMarkDetailed = MutableStateFlow<DetailedMarkResponseDTO?>(null)
+    val selectedMarkDetailed: StateFlow<DetailedMarkResponseDTO?> = _selectedMarkDetailed.asStateFlow()
+
+    private val _isMarkDetailedLoading = MutableStateFlow(false)
+    val isMarkDetailedLoading: StateFlow<Boolean> = _isMarkDetailedLoading.asStateFlow()
+
     private val _markSubjectRanks = MutableStateFlow<List<AcademicClassRankItem>>(emptyList())
     val markSubjectRanks: StateFlow<List<AcademicClassRankItem>> = _markSubjectRanks.asStateFlow()
 
@@ -475,6 +485,10 @@ class MeshMainViewModel(
                         homework = detailed.homework ?: lesson.homework,
                         topic = detailed.topic ?: lesson.topic,
                         mark = detailed.mark ?: lesson.mark,
+                        rawMark = detailed.rawMark ?: lesson.rawMark,
+                        isPoint = detailed.isPoint || lesson.isPoint,
+                        pointDate = detailed.pointDate ?: lesson.pointDate,
+                        markId = detailed.markId ?: lesson.markId,
                         markWeight = if (detailed.mark != null) detailed.markWeight else lesson.markWeight,
                         markComment = detailed.markComment ?: lesson.markComment,
                         markControlForm = detailed.markControlForm ?: lesson.markControlForm,
@@ -493,8 +507,21 @@ class MeshMainViewModel(
 
     fun openMarkDetails(lesson: LessonScheduleItem) {
         _selectedMarkLesson.value = lesson
+        _selectedMarkDetailed.value = null
+        val targetMarkId = lesson.markId ?: lesson.id.replace("ev_", "").substringBefore("_").toLongOrNull()
         viewModelScope.launch {
             _isMarkSubjectRanksLoading.value = true
+            _isMarkDetailedLoading.value = true
+            try {
+                if (targetMarkId != null && targetMarkId > 0) {
+                    val detailed = repository.fetchMarkDetails(targetMarkId)
+                    _selectedMarkDetailed.value = detailed
+                }
+            } catch (_: Exception) {
+            } finally {
+                _isMarkDetailedLoading.value = false
+            }
+
             val ranks = repository.fetchLessonClassRank(lesson)
             _markSubjectRanks.value = ranks
             _isMarkSubjectRanksLoading.value = false
@@ -507,7 +534,11 @@ class MeshMainViewModel(
             subject = mark.subject,
             subjectId = mark.subjectId,
             date = mark.date,
-            mark = mark.value,
+            mark = if (mark.value in 2..5) mark.value else null,
+            rawMark = mark.rawValue,
+            isPoint = mark.isPoint,
+            pointDate = mark.pointDate,
+            markId = mark.id.toLongOrNull(),
             markWeight = mark.weight,
             markComment = mark.comment,
             markControlForm = mark.controlFormName,
@@ -518,6 +549,7 @@ class MeshMainViewModel(
 
     fun closeMarkDetails() {
         _selectedMarkLesson.value = null
+        _selectedMarkDetailed.value = null
         _markSubjectRanks.value = emptyList()
     }
 
@@ -568,6 +600,49 @@ class MeshMainViewModel(
     fun closeTestExecution() {
         _activeTestExecutionUrl.value = null
         _activeTestExecutionTitle.value = null
+    }
+
+    private val _isDownloadingFile = MutableStateFlow(false)
+    val isDownloadingFile: StateFlow<Boolean> = _isDownloadingFile.asStateFlow()
+
+    private val _downloadStatusMessage = MutableStateFlow<String?>(null)
+    val downloadStatusMessage: StateFlow<String?> = _downloadStatusMessage.asStateFlow()
+
+    fun clearDownloadStatus() {
+        _downloadStatusMessage.value = null
+    }
+
+    fun downloadAttachment(context: android.content.Context, url: String, fileName: String, openAfterDownload: Boolean = false) {
+        viewModelScope.launch {
+            _isDownloadingFile.value = true
+            val result = ru.mesh.expressive.util.MeshFileDownloader.downloadFile(
+                context = context,
+                url = url,
+                suggestedFileName = fileName,
+                sessionManager = repository.sessionManager
+            )
+            _isDownloadingFile.value = false
+            when (result) {
+                is ru.mesh.expressive.util.DownloadResult.Success -> {
+                    _downloadStatusMessage.value = "Файл сохранен: ${result.fileName}"
+                    if (openAfterDownload) {
+                        ru.mesh.expressive.util.MeshFileDownloader.openFile(context, result.uri, result.mimeType)
+                    } else {
+                        android.widget.Toast.makeText(context, "Файл сохранен в Загрузки: ${result.fileName}", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                is ru.mesh.expressive.util.DownloadResult.Error -> {
+                    _downloadStatusMessage.value = "Ошибка: ${result.message}"
+                    android.widget.Toast.makeText(context, "Ошибка: ${result.message}", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    fun loadScheduleForDates(beginDate: String, endDate: String) {
+        viewModelScope.launch {
+            repository.loadScheduleForDateRange(beginDate, endDate)
+        }
     }
 
     class Factory(

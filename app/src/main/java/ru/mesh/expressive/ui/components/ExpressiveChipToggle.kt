@@ -1,10 +1,12 @@
 package ru.mesh.expressive.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -25,6 +27,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -38,10 +41,8 @@ fun <T> ExpressiveChipSegmentedToggle(
 ) {
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
     val selectedIndex = items.indexOf(selectedItem).coerceIn(0, (items.size - 1).coerceAtLeast(0))
-
-    val currentSelectedIndex by rememberUpdatedState(selectedIndex)
-    val onItemSelectedState by rememberUpdatedState(onItemSelected)
 
     // Map of item index to Pair(leftPx, widthPx)
     val itemBounds = remember { mutableStateMapOf<Int, Pair<Float, Float>>() }
@@ -51,68 +52,103 @@ fun <T> ExpressiveChipSegmentedToggle(
     val targetLeft = currentBounds?.first ?: 0f
     val targetWidth = currentBounds?.second ?: 0f
 
-    val animLeft by animateFloatAsState(
-        targetValue = targetLeft,
-        animationSpec = spring(dampingRatio = 0.78f, stiffness = 450f),
-        label = "chipLeft"
-    )
-    val animWidth by animateFloatAsState(
-        targetValue = targetWidth,
-        animationSpec = spring(dampingRatio = 0.78f, stiffness = 450f),
-        label = "chipWidth"
-    )
+    val animLeft = remember { Animatable(targetLeft) }
+    val animWidth = remember { Animatable(targetWidth) }
+    var isInitialized by remember { mutableStateOf(false) }
+
+    // Interactive dragging state
+    var isDragging by remember { mutableStateOf(false) }
+    var dragLeftPx by remember { mutableFloatStateOf(0f) }
+    var hoveredIndex by remember { mutableIntStateOf(selectedIndex) }
+
+    LaunchedEffect(targetLeft, targetWidth) {
+        if (targetWidth > 0f) {
+            if (!isInitialized) {
+                animLeft.snapTo(targetLeft)
+                animWidth.snapTo(targetWidth)
+                isInitialized = true
+            } else if (!isDragging) {
+                launch {
+                    animLeft.animateTo(
+                        targetValue = targetLeft,
+                        animationSpec = spring(dampingRatio = 0.78f, stiffness = 450f)
+                    )
+                }
+                launch {
+                    animWidth.animateTo(
+                        targetValue = targetWidth,
+                        animationSpec = spring(dampingRatio = 0.78f, stiffness = 450f)
+                    )
+                }
+            }
+        }
+    }
 
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val downX = down.position.x
-                        var hasMoved = false
-
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-
-                            if (!change.pressed) {
-                                // Finger lifted: if it was a tap (not dragged)
-                                if (!hasMoved) {
-                                    val tappedIndex = itemBounds.entries.firstOrNull { (_, b) ->
-                                        downX >= b.first && downX <= b.first + b.second
-                                    }?.key
-                                    if (tappedIndex != null && tappedIndex in items.indices && tappedIndex != currentSelectedIndex) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onItemSelectedState(items[tappedIndex])
-                                    }
-                                }
-                                break
+            .pointerInput(items, selectedIndex) {
+                detectHorizontalDragGestures(
+                    onDragStart = { _ ->
+                        isDragging = true
+                        dragLeftPx = animLeft.value
+                        hoveredIndex = selectedIndex
+                    },
+                    onDragEnd = {
+                        val finalIndex = hoveredIndex
+                        isDragging = false
+                        if (finalIndex != selectedIndex && finalIndex in items.indices) {
+                            coroutineScope.launch {
+                                animLeft.snapTo(dragLeftPx)
                             }
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onItemSelected(items[finalIndex])
+                        } else {
+                            coroutineScope.launch {
+                                animLeft.animateTo(
+                                    targetValue = targetLeft,
+                                    animationSpec = spring(dampingRatio = 0.78f, stiffness = 450f)
+                                )
+                            }
+                        }
+                    },
+                    onDragCancel = {
+                        isDragging = false
+                        coroutineScope.launch {
+                            animLeft.animateTo(
+                                targetValue = targetLeft,
+                                animationSpec = spring(dampingRatio = 0.78f, stiffness = 450f)
+                            )
+                        }
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        val minLeft = itemBounds[0]?.first ?: 0f
+                        val maxLeft = itemBounds[items.size - 1]?.first ?: 0f
+                        dragLeftPx = (dragLeftPx + dragAmount).coerceIn(minLeft, maxLeft)
 
-                            val currentX = change.position.x
-                            val totalDeltaFromStart = currentX - downX
+                        val curW = animWidth.value
+                        val center = dragLeftPx + curW / 2f
+                        val closest = itemBounds.minByOrNull { (_, b) ->
+                            val itemCenter = b.first + b.second / 2f
+                            kotlin.math.abs(center - itemCenter)
+                        }?.key ?: selectedIndex
 
-                            if (kotlin.math.abs(totalDeltaFromStart.toDouble()) > 10.0) {
-                                hasMoved = true
-                                change.consume()
-
-                                // Find which item index is closest to current finger X
-                                val closestIndex = itemBounds.minByOrNull { (_, b) ->
-                                    val itemCenter = b.first + b.second / 2f
-                                    kotlin.math.abs((currentX - itemCenter).toDouble())
-                                }?.key
-
-                                if (closestIndex != null && closestIndex != currentSelectedIndex && closestIndex in items.indices) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onItemSelectedState(items[closestIndex])
-                                }
+                        if (closest != hoveredIndex && closest in items.indices) {
+                            hoveredIndex = closest
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            val targetW = itemBounds[closest]?.second ?: targetWidth
+                            coroutineScope.launch {
+                                animWidth.animateTo(
+                                    targetValue = targetW,
+                                    animationSpec = spring(dampingRatio = 0.78f, stiffness = 450f)
+                                )
                             }
                         }
                     }
-                }
+                )
             }
     ) {
         Box(
@@ -120,14 +156,17 @@ fun <T> ExpressiveChipSegmentedToggle(
                 .onGloballyPositioned { containerHeightPx = it.size.height.toFloat() }
                 .padding(3.dp)
         ) {
+            val displayLeft = if (isDragging) dragLeftPx else animLeft.value
+            val activeVisualIndex = if (isDragging) hoveredIndex else selectedIndex
+
             // Smooth sliding chip indicator (measured to fit exact text width!)
-            if (animWidth > 0f) {
+            if (animWidth.value > 0f) {
                 val hDp = if (containerHeightPx > 0f) density.run { (containerHeightPx - 6.dp.toPx()).toDp() } else 32.dp
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(animLeft.roundToInt(), 0) }
+                        .offset { IntOffset(displayLeft.roundToInt(), 0) }
                         .size(
-                            width = density.run { animWidth.toDp() },
+                            width = density.run { animWidth.value.toDp() },
                             height = hDp
                         )
                         .clip(RoundedCornerShape(9.dp))
@@ -141,7 +180,7 @@ fun <T> ExpressiveChipSegmentedToggle(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items.forEachIndexed { index, item ->
-                    val isSelected = item == selectedItem
+                    val isSelected = index == activeVisualIndex
                     val textColor by animateColorAsState(
                         targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
@@ -158,6 +197,15 @@ fun <T> ExpressiveChipSegmentedToggle(
                                 }
                             }
                             .clip(RoundedCornerShape(9.dp))
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (selectedIndex != index) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onItemSelected(item)
+                                }
+                            }
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {

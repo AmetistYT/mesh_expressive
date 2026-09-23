@@ -453,6 +453,16 @@ interface MeshFamilyMobileApi {
         @Query("to") to: String
     ): Response<MarksResponseDTO>
 
+    @GET("marks/{markId}")
+    suspend fun getMarkDetails(
+        @Header("Authorization") token: String,
+        @Header("Profile-Id") profileId: Long,
+        @Header("x-mes-subsystem") subsystem: String = "familymp",
+        @Header("client-type") clientType: String = "diary-mobile",
+        @Path("markId") markId: Long,
+        @Query("student_id") studentId: Long
+    ): Response<DetailedMarkResponseDTO>
+
     @GET("subject_marks/short")
     suspend fun getSubjectMarksShort(
         @Header("Authorization") token: String,

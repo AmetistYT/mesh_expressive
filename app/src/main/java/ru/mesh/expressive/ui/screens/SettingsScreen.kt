@@ -658,9 +658,7 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = ExpressiveCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
             ) {
                 Row(
                     modifier = Modifier

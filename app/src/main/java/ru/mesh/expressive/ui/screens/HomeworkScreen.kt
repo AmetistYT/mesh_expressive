@@ -32,20 +32,49 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
     val homeworkList by viewModel.homeworkList.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    var filter by remember { mutableStateOf("Все") }
-    val filters = listOf("Все", "На завтра", "Невыполненные", "С тестами ЦДЗ")
+    var filter by remember { mutableStateOf("На завтра") }
+    val filters = listOf("На завтра", "Все", "Невыполненные", "С тестами ЦДЗ")
 
     val tomorrowDateFormatted = remember {
         java.text.SimpleDateFormat("d MMMM", java.util.Locale("ru")).format(java.util.Date(System.currentTimeMillis() + 86400000L))
     }
 
+    val nextSchoolDateInfo = remember {
+        val cal = java.util.Calendar.getInstance()
+        val dow = cal.get(java.util.Calendar.DAY_OF_WEEK)
+        val daysToAdd = when (dow) {
+            java.util.Calendar.FRIDAY -> 3
+            java.util.Calendar.SATURDAY -> 2
+            java.util.Calendar.SUNDAY -> 1
+            else -> 1
+        }
+        val targetCal = (cal.clone() as java.util.Calendar).apply {
+            add(java.util.Calendar.DAY_OF_MONTH, daysToAdd)
+        }
+        val sdfIso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val sdfReadable = java.text.SimpleDateFormat("d MMMM", java.util.Locale("ru"))
+        val sdfTomorrow = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(
+            java.util.Date(System.currentTimeMillis() + 86400000L)
+        )
+        Triple(sdfIso.format(targetCal.time), sdfReadable.format(targetCal.time), sdfTomorrow)
+    }
+
     val hideCompletedHomework by viewModel.hideCompletedHomework.collectAsState()
 
-    val filteredList = remember(homeworkList, filter, tomorrowDateFormatted, hideCompletedHomework) {
+    val filteredList = remember(homeworkList, filter, tomorrowDateFormatted, nextSchoolDateInfo, hideCompletedHomework) {
         val baseList = if (hideCompletedHomework) homeworkList.filter { !it.isDone } else homeworkList
         when (filter) {
-            "На завтра" -> baseList.filter {
-                it.dueDate == "Завтра" || it.dueDate.equals(tomorrowDateFormatted, ignoreCase = true)
+            "На завтра" -> {
+                val (targetIso, targetReadable, tomorrowIso) = nextSchoolDateInfo
+                baseList.filter {
+                    // 1. Задано к уроку на целевой день (на завтра / понедельник)
+                    (it.rawTargetDate.isNotBlank() && (it.rawTargetDate == targetIso || it.rawTargetDate == tomorrowIso)) ||
+                    it.targetDate == "Завтра" || it.targetDate.equals(targetReadable, ignoreCase = true) ||
+                    // 2. Либо дедлайн сдачи истекает на целевой день
+                    (it.rawDueDate.isNotBlank() && (it.rawDueDate == targetIso || it.rawDueDate == tomorrowIso)) ||
+                    it.dueDate == "Завтра" || it.dueDate.equals(targetReadable, ignoreCase = true) ||
+                    it.dueDate.equals(tomorrowDateFormatted, ignoreCase = true)
+                }
             }
             "Невыполненные" -> baseList.filter { !it.isDone }
             "С тестами ЦДЗ" -> baseList.filter { it.hasDigitalTest }
@@ -54,8 +83,6 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
     }
 
     val totalCount = homeworkList.size
-    val doneCount = homeworkList.count { it.isDone }
-    val progress = if (totalCount > 0) doneCount.toFloat() / totalCount.toFloat() else 0f
 
     ExpressivePullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -70,7 +97,7 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)
         ) {
-            // Header Progress Card
+            // Header Card
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -92,36 +119,33 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
+                                val taskText = when {
+                                    totalCount == 0 -> "Нет активных заданий"
+                                    totalCount % 10 == 1 && totalCount % 100 != 11 -> "$totalCount задание"
+                                    totalCount % 10 in 2..4 && totalCount % 100 !in 12..14 -> "$totalCount задания"
+                                    else -> "$totalCount заданий"
+                                }
                                 Text(
-                                    text = if (totalCount > 0) "Выполнено $doneCount из $totalCount" else "Нет активных заданий",
+                                    text = taskText,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                 )
                             }
 
-                            Surface(
-                                shape = PillShape,
-                                color = MaterialTheme.colorScheme.primary
-                            ) {
-                                Text(
-                                    text = "${(progress * 100).toInt()}%",
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
+                            if (totalCount > 0) {
+                                Surface(
+                                    shape = PillShape,
+                                    color = MaterialTheme.colorScheme.primary
+                                ) {
+                                    Text(
+                                        text = "$totalCount",
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
                             }
-                        }
-
-                        if (totalCount > 0) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            M3WavyProgressIndicator(
-                                progress = progress,
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                amplitude = 4f,
-                                wavelength = 32f
-                            )
                         }
                     }
                 }
@@ -163,24 +187,31 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
             // List of Homework Items
             if (filteredList.isEmpty()) {
                 item {
+                    val emptySubtitle = when (filter) {
+                        "На завтра" -> "На ближайший учебный день заданий не найдено"
+                        "Невыполненные" -> "Все домашние задания выполнены!"
+                        "С тестами ЦДЗ" -> "Заданий с тестами ЦДЗ не найдено"
+                        else -> "Домашние задания отсутствуют"
+                    }
                     ExpressiveEmptyState(
                         title = "Здесь ничего нет",
-                        subtitle = "Домашние задания отсутствуют",
-                        icon = Icons.Default.Inbox
+                        subtitle = emptySubtitle,
+                        icon = if (filter == "Невыполненные") Icons.Default.CheckCircleOutline else Icons.Default.Inbox
                     )
                 }
             } else {
                 items(filteredList) { hw ->
+                    val hwColor = if (hw.isDone)
+                        MaterialTheme.colorScheme.surfaceContainerLowest
+                    else
+                        MaterialTheme.colorScheme.surfaceContainerLow
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .expressiveBounceClick { viewModel.openHomeworkDetails(hw) },
                         shape = ExpressiveCardShape,
                         colors = CardDefaults.cardColors(
-                            containerColor = if (hw.isDone)
-                                MaterialTheme.colorScheme.surfaceContainerLowest
-                            else
-                                MaterialTheme.colorScheme.surfaceContainerLow
+                            containerColor = hwColor
                         )
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -207,16 +238,24 @@ fun HomeworkScreen(viewModel: MeshMainViewModel) {
                                     )
                                 }
 
+                                val hasDifferentDates = hw.rawTargetDate.isNotBlank() && hw.rawDueDate.isNotBlank() && hw.rawTargetDate != hw.rawDueDate
+                                val dateBadgeText = if (hasDifferentDates) {
+                                    "На ${hw.targetDate} • До ${hw.dueDate}"
+                                } else {
+                                    val displayDate = if (hw.targetDate.isNotBlank()) hw.targetDate else hw.dueDate
+                                    "Срок: $displayDate"
+                                }
+                                val isUrgent = hw.dueDate == "Завтра" || hw.targetDate == "Завтра" || hw.dueDate == "Сегодня"
                                 Surface(
                                     shape = PillShape,
-                                    color = if (hw.dueDate == "Завтра") ScoreOrangeContainer else MaterialTheme.colorScheme.surfaceVariant
+                                    color = if (isUrgent) ScoreOrangeContainer else MaterialTheme.colorScheme.surfaceVariant
                                 ) {
                                     Text(
-                                        text = "Срок: ${hw.dueDate}",
+                                        text = dateBadgeText,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = if (hw.dueDate == "Завтра") ScoreOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = if (isUrgent) ScoreOrange else MaterialTheme.colorScheme.onSurfaceVariant,
                                         softWrap = false,
                                         maxLines = 1
                                     )

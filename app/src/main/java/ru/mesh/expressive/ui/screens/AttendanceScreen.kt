@@ -34,7 +34,6 @@ fun AttendanceScreen(viewModel: MeshMainViewModel) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp)

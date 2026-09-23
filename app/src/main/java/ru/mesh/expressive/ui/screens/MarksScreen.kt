@@ -173,7 +173,7 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
 
                 // 3. Content by Mode
                 if (subjectSummaries.isEmpty()) {
-                    item {
+                    item(key = "marks_empty") {
                         ru.mesh.expressive.ui.components.ExpressiveEmptyState(
                             title = "Здесь ничего нет",
                             subtitle = "В текущем учебном периоде выставленных оценок нет",
@@ -181,7 +181,11 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                         )
                     }
                 } else if (viewMode == MarksViewMode.BY_SUBJECT) {
-                    items(subjectSummaries) { subject ->
+                    items(
+                        items = subjectSummaries,
+                        key = { "${it.subjectId}_${it.subject}" },
+                        contentType = { "subject" }
+                    ) { subject ->
                         SubjectMarksCard(
                             subjectSummary = subject,
                             showWeightedGpa = showWeightedGpa,
@@ -194,7 +198,11 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                     }
                 } else {
                     // Grouped by Date (по числу)
-                    items(allMarksGroupedByDate) { (date, marks) ->
+                    items(
+                        items = allMarksGroupedByDate,
+                        key = { it.first },
+                        contentType = { "dateGroup" }
+                    ) { (date, marks) ->
                         DateMarksGroupCard(
                             date = date,
                             marks = marks,
@@ -381,17 +389,38 @@ fun DateMarksGroupCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        val isPoint = mark.isPoint || mark.rawValue.endsWith(".") || mark.rawValue == "."
+                        val displayVal = if (isPoint) (mark.rawValue.ifBlank { if (mark.value > 0) "${mark.value}." else "•" }) else "${mark.value}"
+                        val formattedPointDate = if (isPoint && !mark.pointDate.isNullOrBlank()) ru.mesh.expressive.util.DateUtils.formatPointDate(mark.pointDate) else null
+
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = mark.subject,
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold
                             )
-                            Text(
-                                text = mark.topic,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            if (mark.topic.isNotBlank()) {
+                                Text(
+                                    text = mark.topic,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (isPoint) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Surface(
+                                    shape = PillShape,
+                                    color = ScoreOrange
+                                ) {
+                                    Text(
+                                        text = if (!formattedPointDate.isNullOrBlank()) "Точка до $formattedPointDate" else "Точка",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -411,10 +440,11 @@ fun DateMarksGroupCard(
                                 }
                             }
 
-                            val (bgColor, textColor) = when (mark.value) {
-                                5 -> ScoreGreenContainer to ScoreGreen
-                                4 -> ScoreBlueContainer to ScoreBlue
-                                3 -> ScoreOrangeContainer to ScoreOrange
+                            val (bgColor, textColor) = when {
+                                isPoint -> ScoreOrangeContainer to ScoreOrange
+                                mark.value == 5 -> ScoreGreenContainer to ScoreGreen
+                                mark.value == 4 -> ScoreBlueContainer to ScoreBlue
+                                mark.value == 3 -> ScoreOrangeContainer to ScoreOrange
                                 else -> ScoreRedContainer to ScoreRed
                             }
 
@@ -426,9 +456,9 @@ fun DateMarksGroupCard(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "${mark.value}",
+                                    text = displayVal,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
+                                    fontSize = if (displayVal.length > 2) 13.sp else 16.sp,
                                     color = textColor
                                 )
                             }
@@ -559,6 +589,10 @@ fun SubjectMarksCard(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                val isPoint = mark.isPoint || mark.rawValue.endsWith(".") || mark.rawValue == "."
+                                val displayVal = if (isPoint) (mark.rawValue.ifBlank { if (mark.value > 0) "${mark.value}." else "•" }) else "${mark.value}"
+                                val formattedPointDate = if (isPoint && !mark.pointDate.isNullOrBlank()) ru.mesh.expressive.util.DateUtils.formatPointDate(mark.pointDate) else null
+
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = mark.topic,
@@ -566,17 +600,35 @@ fun SubjectMarksCard(
                                         fontWeight = FontWeight.Medium
                                     )
                                     val markTimeStr = if (!mark.createdAt.isNullOrBlank()) ru.mesh.expressive.util.DateUtils.formatRelativeDateTime(mark.createdAt) else ru.mesh.expressive.util.DateUtils.formatRelativeDate(mark.date)
-                                    Text(
-                                        text = "$markTimeStr${if (mark.weight > 1.0) " • Вес ${mark.weight}" else ""}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (isPoint) {
+                                            Surface(
+                                                shape = PillShape,
+                                                color = ScoreOrange,
+                                                modifier = Modifier.padding(end = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (!formattedPointDate.isNullOrBlank()) "Точка до $formattedPointDate" else "Точка",
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "$markTimeStr${if (mark.weight > 1.0) " • Вес ${mark.weight}" else ""}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
 
-                                val (bg, fg) = when (mark.value) {
-                                    5 -> ScoreGreenContainer to ScoreGreen
-                                    4 -> ScoreBlueContainer to ScoreBlue
-                                    3 -> ScoreOrangeContainer to ScoreOrange
+                                val (bg, fg) = when {
+                                    isPoint -> ScoreOrangeContainer to ScoreOrange
+                                    mark.value == 5 -> ScoreGreenContainer to ScoreGreen
+                                    mark.value == 4 -> ScoreBlueContainer to ScoreBlue
+                                    mark.value == 3 -> ScoreOrangeContainer to ScoreOrange
                                     else -> ScoreRedContainer to ScoreRed
                                 }
 
@@ -587,8 +639,9 @@ fun SubjectMarksCard(
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
-                                            text = "${mark.value}",
+                                            text = displayVal,
                                             fontWeight = FontWeight.Bold,
+                                            fontSize = if (displayVal.length > 2) 13.sp else 15.sp,
                                             color = fg
                                         )
                                     }

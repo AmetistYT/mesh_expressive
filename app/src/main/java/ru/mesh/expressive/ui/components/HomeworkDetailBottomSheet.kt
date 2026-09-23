@@ -11,6 +11,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import ru.mesh.expressive.ui.theme.ExpressiveCardShape
 import ru.mesh.expressive.ui.theme.PillShape
 import ru.mesh.expressive.ui.viewmodel.MeshMainViewModel
@@ -51,10 +54,19 @@ fun HomeworkDetailBottomSheet(viewModel: MeshMainViewModel) {
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        val dueFormatted = DateUtils.formatRelativeDate(hw.dueDate)
-                        if (dueFormatted.isNotBlank()) {
+                        val targetDisplay = if (hw.targetDate.isNotBlank()) hw.targetDate else hw.dueDate
+                        val dueDisplay = if (hw.dueDate.isNotBlank()) hw.dueDate else targetDisplay
+                        val hasDiff = hw.rawTargetDate.isNotBlank() && hw.rawDueDate.isNotBlank() && hw.rawTargetDate != hw.rawDueDate
+                        if (hasDiff) {
                             Text(
-                                text = "Срок сдачи: $dueFormatted",
+                                text = "На урок: $targetDisplay • Истекает: $dueDisplay",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else if (targetDisplay.isNotBlank()) {
+                            Text(
+                                text = "Срок сдачи: $targetDisplay",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.primary
@@ -110,29 +122,71 @@ fun HomeworkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     }
                 }
 
-                // Date Assigned with exact seconds precision and relative day
-                val dateAssignedFormatted = DateUtils.formatRelativeDateTime(hw.createdAt ?: hw.date)
-                if (dateAssignedFormatted.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Surface(
-                        shape = ExpressiveCardShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.AccessTime,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Выдано: $dateAssignedFormatted",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                // Info card: На какой день задано и когда истекает
+                val assignedRaw = hw.assignedDate.ifBlank { hw.date }
+                val assignedFormatted = DateUtils.formatRelativeDateTime(assignedRaw)
+                val targetText = if (hw.targetDate.isNotBlank()) hw.targetDate else hw.rawTargetDate
+                val dueText = if (hw.dueDate.isNotBlank()) hw.dueDate else hw.rawDueDate
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    shape = ExpressiveCardShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (targetText.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.School,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Задано на урок: $targetText",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        if (dueText.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Timer,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.tertiary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Срок сдачи (истекает): $dueText",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        if (assignedFormatted.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.AccessTime,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Выдано учителем: $assignedFormatted",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Normal,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -189,6 +243,7 @@ fun HomeworkDetailBottomSheet(viewModel: MeshMainViewModel) {
 
                 // Attached Files / Solution Section
                 val isUploading by viewModel.isAttachmentUploading.collectAsState()
+                val isDownloading by viewModel.isDownloadingFile.collectAsState()
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                     contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -198,7 +253,7 @@ fun HomeworkDetailBottomSheet(viewModel: MeshMainViewModel) {
                     }
                 }
 
-                if (hw.homeworkEntryStudentId != null) {
+                if (hw.homeworkEntryStudentId != null || hw.attachments.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -227,9 +282,9 @@ fun HomeworkDetailBottomSheet(viewModel: MeshMainViewModel) {
                                     )
                                 }
 
-                                if (isUploading) {
+                                if (isUploading || isDownloading) {
                                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                } else {
+                                } else if (hw.homeworkEntryStudentId != null) {
                                     FilledTonalButton(
                                         onClick = { filePickerLauncher.launch("*/*") },
                                         shape = PillShape,
@@ -245,10 +300,19 @@ fun HomeworkDetailBottomSheet(viewModel: MeshMainViewModel) {
                             if (hw.attachments.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 hw.attachments.forEach { att ->
+                                    val hasUrl = att.url.isNotBlank()
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .then(
+                                                if (hasUrl) {
+                                                    Modifier.clickable {
+                                                        viewModel.downloadAttachment(context, att.url, att.name, openAfterDownload = true)
+                                                    }
+                                                } else Modifier
+                                            )
+                                            .padding(vertical = 6.dp, horizontal = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
@@ -256,31 +320,58 @@ fun HomeworkDetailBottomSheet(viewModel: MeshMainViewModel) {
                                             Icon(
                                                 Icons.Default.Description,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(18.dp),
-                                                tint = MaterialTheme.colorScheme.secondary
+                                                modifier = Modifier.size(20.dp),
+                                                tint = MaterialTheme.colorScheme.primary
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = att.name.ifBlank { "Файл решения" },
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                maxLines = 1,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = att.name.ifBlank { "Файл задания" },
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (hasUrl) {
+                                                    Text(
+                                                        text = "Нажмите для скачивания / открытия",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
                                         }
 
-                                        if (att.id != null) {
-                                            IconButton(
-                                                onClick = {
-                                                    viewModel.deleteHomeworkAttachment(hw.homeworkEntryStudentId, att.id)
-                                                },
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.DeleteOutline,
-                                                    contentDescription = "Удалить",
-                                                    modifier = Modifier.size(18.dp),
-                                                    tint = MaterialTheme.colorScheme.error
-                                                )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (hasUrl) {
+                                                IconButton(
+                                                    onClick = {
+                                                        viewModel.downloadAttachment(context, att.url, att.name, openAfterDownload = false)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Download,
+                                                        contentDescription = "Скачать файл",
+                                                        modifier = Modifier.size(20.dp),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            }
+                                            if (att.id != null && hw.homeworkEntryStudentId != null) {
+                                                IconButton(
+                                                    onClick = {
+                                                        viewModel.deleteHomeworkAttachment(hw.homeworkEntryStudentId, att.id)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.DeleteOutline,
+                                                        contentDescription = "Удалить",
+                                                        modifier = Modifier.size(20.dp),
+                                                        tint = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
                                             }
                                         }
                                     }

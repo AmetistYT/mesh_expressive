@@ -42,14 +42,6 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
     val isCompactSchedule by viewModel.isCompactSchedule.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    val currentMonthYear = remember {
-        val cal = java.util.Calendar.getInstance()
-        val month = java.text.SimpleDateFormat("LLLL", java.util.Locale("ru")).format(cal.time)
-            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale("ru")) else it.toString() }
-        val year = cal.get(java.util.Calendar.YEAR)
-        "$month $year"
-    }
-
     data class DaySelectorItem(
         val dayIndex: Int,
         val dayName: String,
@@ -58,14 +50,36 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
         val isToday: Boolean
     )
 
-    val weekDays = remember {
+    val sdf = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()) }
+    val todayCal = java.util.Calendar.getInstance()
+    val todayDow = todayCal.get(java.util.Calendar.DAY_OF_WEEK)
+    val todayDateStr = remember { sdf.format(todayCal.time) }
+
+    val isSunday = todayDow == java.util.Calendar.SUNDAY
+    val isNextWeekAuto = remember(isSunday, weekSchedule) {
+        if (isSunday) {
+            true
+        } else if (todayDow == java.util.Calendar.SATURDAY) {
+            val saturdayLessons = weekSchedule[todayDateStr]
+            saturdayLessons.isNullOrEmpty()
+        } else {
+            false
+        }
+    }
+
+    var weekOffset by remember { mutableIntStateOf(if (isNextWeekAuto) 1 else 0) }
+
+    val weekDays = remember(weekOffset) {
         val cal = java.util.Calendar.getInstance()
-        cal.firstDayOfWeek = java.util.Calendar.MONDAY
-        cal.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
-        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val dow = cal.get(java.util.Calendar.DAY_OF_WEEK)
+        // Точный математический сдвиг до понедельника текущей недели
+        val daysSinceMonday = if (dow == java.util.Calendar.SUNDAY) 6 else dow - java.util.Calendar.MONDAY
+        cal.add(java.util.Calendar.DAY_OF_MONTH, -daysSinceMonday)
+        if (weekOffset != 0) {
+            cal.add(java.util.Calendar.DAY_OF_MONTH, weekOffset * 7)
+        }
         val dayNames = listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ")
-        val todayCal = java.util.Calendar.getInstance()
-        val curDateStr = sdf.format(todayCal.time)
+        val curDateStr = sdf.format(java.util.Calendar.getInstance().time)
 
         (0 until 6).map { i ->
             val dateStr = sdf.format(cal.time)
@@ -79,6 +93,33 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
             )
             cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
             item
+        }
+    }
+
+    // Автоматическая подгрузка расписания уроков для выбранной недели, если данных еще нет в кэше
+    LaunchedEffect(weekOffset) {
+        val firstDate = weekDays.firstOrNull()?.dateStr ?: return@LaunchedEffect
+        val lastDate = weekDays.lastOrNull()?.dateStr ?: return@LaunchedEffect
+        val hasLessons = weekDays.any { weekSchedule[it.dateStr]?.isNotEmpty() == true }
+        if (!hasLessons) {
+            viewModel.loadScheduleForDates(firstDate, lastDate)
+        }
+    }
+
+    val currentMonthYear = remember(weekDays) {
+        val firstDateStr = weekDays.firstOrNull()?.dateStr ?: ""
+        val parsed = try { sdf.parse(firstDateStr) } catch (_: Exception) { null }
+        if (parsed != null) {
+            val month = java.text.SimpleDateFormat("LLLL", java.util.Locale("ru")).format(parsed)
+                .replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale("ru")) else it.toString() }
+            val year = java.text.SimpleDateFormat("yyyy", java.util.Locale.getDefault()).format(parsed)
+            "$month $year"
+        } else {
+            val cal = java.util.Calendar.getInstance()
+            val month = java.text.SimpleDateFormat("LLLL", java.util.Locale("ru")).format(cal.time)
+                .replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale("ru")) else it.toString() }
+            val year = cal.get(java.util.Calendar.YEAR)
+            "$month $year"
         }
     }
 
@@ -111,16 +152,18 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
         }
     }
 
-    val defaultSelectedDayIndex = remember(scheduleToday) {
-        val isTomorrow = viewModel.computeSmartDefaultDay(scheduleToday) == ru.mesh.expressive.ui.viewmodel.DashboardDay.TOMORROW
-        val cal = java.util.Calendar.getInstance()
-        val dow = cal.get(java.util.Calendar.DAY_OF_WEEK)
-        if (dow == java.util.Calendar.SUNDAY) {
-            0
-        } else if (isTomorrow) {
-            if (todayDayOfWeekIndex < 5) todayDayOfWeekIndex + 1 else 0
+    val defaultSelectedDayIndex = remember(weekOffset, scheduleToday, isSunday) {
+        if (isSunday) {
+            0 // В воскресенье всегда выбираем понедельник
+        } else if (weekOffset == 0) {
+            val isTomorrow = viewModel.computeSmartDefaultDay(scheduleToday) == ru.mesh.expressive.ui.viewmodel.DashboardDay.TOMORROW
+            if (isTomorrow && todayDayOfWeekIndex < 5) {
+                todayDayOfWeekIndex + 1
+            } else {
+                todayDayOfWeekIndex
+            }
         } else {
-            todayDayOfWeekIndex
+            0
         }
     }
 
@@ -155,7 +198,7 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
-                        // Month & Quick Today Action Row
+                        // Month, Week Navigation & Quick Today Action Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -178,18 +221,53 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = {
+                                        weekOffset--
+                                        selectedDayIndex = 0
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronLeft,
+                                        contentDescription = "Предыдущая неделя",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        weekOffset++
+                                        selectedDayIndex = 0
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "Следующая неделя",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
 
-                            if (selectedDayIndex != todayDayOfWeekIndex) {
+                            val isCurrentActiveWeek = weekOffset == (if (isNextWeekAuto) 1 else 0)
+                            val isCurrentActiveDay = if (isSunday) selectedDayIndex == 0 else selectedDayIndex == todayDayOfWeekIndex
+                            if (!isCurrentActiveWeek || !isCurrentActiveDay) {
                                 Surface(
                                     shape = PillShape,
                                     color = MaterialTheme.colorScheme.primaryContainer,
                                     modifier = Modifier
                                         .clip(PillShape)
-                                        .expressiveBounceClick { selectedDayIndex = todayDayOfWeekIndex }
+                                        .expressiveBounceClick {
+                                            weekOffset = if (isNextWeekAuto) 1 else 0
+                                            selectedDayIndex = defaultSelectedDayIndex
+                                        }
                                 ) {
                                     Text(
-                                        text = "Сегодня",
+                                        text = if (isSunday) "К след. ПН" else if (!isCurrentActiveWeek) "К текущей" else "Сегодня",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -284,14 +362,18 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
             // Lessons List for Selected Day
             val selectedDateStr = daysDates.getOrNull(selectedDayIndex) ?: ""
             val lessons = weekSchedule[selectedDateStr]
-                ?: when (selectedDayIndex) {
-                    todayDayOfWeekIndex -> scheduleToday
-                    todayDayOfWeekIndex + 1 -> scheduleTomorrow
-                    else -> emptyList()
+                ?: if (weekOffset == 0 && !isSunday) {
+                    when (selectedDayIndex) {
+                        todayDayOfWeekIndex -> scheduleToday
+                        todayDayOfWeekIndex + 1 -> scheduleTomorrow
+                        else -> emptyList()
+                    }
+                } else {
+                    emptyList()
                 }
 
             if (lessons.isEmpty()) {
-                item {
+                item(key = "schedule_empty_$selectedDayIndex") {
                     ru.mesh.expressive.ui.components.ExpressiveEmptyState(
                         title = "Здесь ничего нет",
                         subtitle = "На выбранный день уроков в расписании нет",
@@ -299,7 +381,11 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
                     )
                 }
             } else {
-                items(lessons) { lesson ->
+                items(
+                    items = lessons,
+                    key = { it.id.ifBlank { "${selectedDayIndex}_${it.lessonNumber}_${it.startTime}_${it.subject}" } },
+                    contentType = { "lesson" }
+                ) { lesson ->
                     DetailedLessonCard(
                         lesson = lesson,
                         isCompact = isCompactSchedule,
@@ -309,7 +395,7 @@ fun ScheduleScreen(viewModel: MeshMainViewModel) {
             }
 
             // Каникулы и график периодов внизу расписания
-            item {
+            item(key = "vacations_card") {
                 Spacer(modifier = Modifier.height(6.dp))
                 ru.mesh.expressive.ui.components.VacationsCard(
                     viewModel = viewModel,
@@ -327,11 +413,16 @@ fun DetailedLessonCard(
     onClick: (() -> Unit)? = null
 ) {
     if (isCompact) {
+        val compactShape = RoundedCornerShape(14.dp)
+        val compactColor = if (lesson.isOngoing)
+            MaterialTheme.colorScheme.primaryContainer
+        else
+            MaterialTheme.colorScheme.surfaceContainerLow
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-            shape = RoundedCornerShape(14.dp),
+            shape = compactShape,
             colors = CardDefaults.cardColors(
                 containerColor = if (lesson.isOngoing)
                     MaterialTheme.colorScheme.primaryContainer
@@ -384,22 +475,29 @@ fun DetailedLessonCard(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                            )
                     }
 
-                    if (lesson.mark != null) {
+                    val hasMark = lesson.mark != null || lesson.isPoint || !lesson.rawMark.isNullOrBlank()
+                    if (hasMark) {
+                        val isPt = lesson.isPoint || lesson.rawMark?.endsWith(".") == true || lesson.rawMark == "."
+                        val markText = when {
+                            !lesson.rawMark.isNullOrBlank() -> lesson.rawMark!!
+                            isPt -> if (lesson.mark != null) "${lesson.mark}." else "•"
+                            lesson.mark != null -> "${lesson.mark}"
+                            else -> "•"
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer
+                            color = if (isPt) ScoreOrangeContainer else MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Text(
-                                text = "${lesson.mark}",
+                                text = markText,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                color = if (isPt) ScoreOrange else MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
                     }
@@ -467,17 +565,26 @@ fun DetailedLessonCard(
                         )
                     }
 
-                    if (lesson.mark != null) {
+                    val hasDetailedMark = lesson.mark != null || lesson.isPoint || !lesson.rawMark.isNullOrBlank()
+                    if (hasDetailedMark) {
+                        val isPt = lesson.isPoint || lesson.rawMark?.endsWith(".") == true || lesson.rawMark == "."
+                        val markText = when {
+                            !lesson.rawMark.isNullOrBlank() -> lesson.rawMark!!
+                            isPt -> if (lesson.mark != null) "${lesson.mark}." else "•"
+                            lesson.mark != null -> "${lesson.mark}"
+                            else -> "•"
+                        }
+                        val prefix = if (isPt) "Точка: " else "Оценка: "
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer
+                            color = if (isPt) ScoreOrangeContainer else MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Text(
-                                text = "Оценка: ${lesson.mark}${if (lesson.markWeight > 1.0) " (вес ${lesson.markWeight.toInt()})" else ""}",
+                                text = "$prefix$markText${if (lesson.markWeight > 1.0) " (вес ${lesson.markWeight.toInt()})" else ""}",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                color = if (isPt) ScoreOrange else MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
                     }
