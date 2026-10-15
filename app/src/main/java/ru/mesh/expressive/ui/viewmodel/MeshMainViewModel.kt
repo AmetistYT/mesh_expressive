@@ -102,6 +102,35 @@ class MeshMainViewModel(
     val portfolioAchievements: StateFlow<List<PortfolioAchievementItem>> = repository.portfolioAchievements
     val isOffline: StateFlow<Boolean> = repository.isOffline
 
+    val activeGpa: StateFlow<Double> = combine(
+        studentProfile,
+        subjectSummaries,
+        showWeightedGpa
+    ) { profile, summaries, weighted ->
+        val allMarks = summaries.flatMap { it.marks }
+        if (allMarks.isNotEmpty()) {
+            if (weighted) {
+                val totalWeight = allMarks.sumOf { it.weight }
+                if (totalWeight > 0.0) {
+                    allMarks.sumOf { it.value * it.weight } / totalWeight
+                } else {
+                    allMarks.map { it.value }.average()
+                }
+            } else {
+                allMarks.map { it.value }.average()
+            }
+        } else if (summaries.isNotEmpty()) {
+            val avgs = summaries.map { it.getEffectiveAverage(weighted) }.filter { it > 0.0 }
+            if (avgs.isNotEmpty()) avgs.average() else profile.gpa
+        } else {
+            profile.gpa
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = studentProfile.value.gpa
+    )
+
     private val _selectedRatingSubjectId = MutableStateFlow<Long?>(null)
     val selectedRatingSubjectId: StateFlow<Long?> = _selectedRatingSubjectId.asStateFlow()
 

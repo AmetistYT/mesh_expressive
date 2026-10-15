@@ -886,33 +886,72 @@ class MeshRepository(val sessionManager: SessionManager) {
                     val subjectsList = marksResp.body()!!.payload.orEmpty()
                     val summaries = subjectsList.map { subj ->
                         val avg = subj.average?.replace(",", ".")?.toDoubleOrNull() ?: 0.0
-                        val marksList = subj.marks.orEmpty().map { m ->
-                            val mid = m.id?.toString() ?: ""
-                            val detailed = rawMarksMap[mid]
-                            val rawStr = m.value?.trim() ?: detailed?.value?.trim() ?: ""
-                            val isPt = m.isPoint == true || detailed?.isPoint == true || rawStr.endsWith(".") || rawStr == "."
-                            val cleanVal = rawStr.removeSuffix(".").toIntOrNull() ?: if (isPt) 0 else 5
-                            val ptDate = detailed?.pointDate ?: m.pointDate
-                            MarkItem(
-                                id = mid,
-                                subject = subj.subjectName ?: "",
-                                subjectId = detailed?.subjectId ?: subj.subjectId ?: 0L,
-                                value = cleanVal,
-                                rawValue = rawStr,
-                                isPoint = isPt,
-                                pointDate = ptDate,
-                                weight = detailed?.weight ?: m.weight ?: 1.0,
-                                date = detailed?.date ?: m.date ?: "",
-                                topic = detailed?.controlFormName ?: m.controlFormName ?: detailed?.comment ?: m.comment ?: "",
-                                isExam = detailed?.isExam ?: (m.isExam == true),
-                                controlFormName = detailed?.controlFormName ?: m.controlFormName,
-                                comment = detailed?.comment ?: m.comment,
-                                createdAt = detailed?.createdAt
-                            )
+                        val sName = subj.subjectName ?: ""
+                        val sId = subj.subjectId ?: 0L
+
+                        // 1. Сначала берём полные детальные оценки из /marks для данного предмета (если есть)
+                        val marksForSubjFromAll = rawMarksMap.values.filter { rm ->
+                            (sId > 0 && rm.subjectId == sId) ||
+                            (sName.isNotBlank() && rm.subjectName.equals(sName, ignoreCase = true))
                         }
+
+                        val marksList = if (marksForSubjFromAll.isNotEmpty()) {
+                            marksForSubjFromAll.map { rm ->
+                                val mid = rm.id?.toString() ?: ""
+                                val rawStr = rm.value?.trim() ?: ""
+                                val isPt = rm.isPoint == true || !rm.pointDate.isNullOrBlank() || rawStr.endsWith(".") || rawStr == "."
+                                val cleanVal = rawStr.removeSuffix(".").toIntOrNull() ?: if (isPt) 0 else 5
+                                MarkItem(
+                                    id = mid,
+                                    subject = sName.ifBlank { rm.subjectName ?: "" },
+                                    subjectId = if (sId > 0) sId else (rm.subjectId ?: 0L),
+                                    value = cleanVal,
+                                    rawValue = rawStr,
+                                    isPoint = isPt,
+                                    pointDate = rm.pointDate,
+                                    weight = rm.weight ?: 1.0,
+                                    date = rm.date ?: "",
+                                    topic = rm.controlFormName ?: rm.comment ?: "",
+                                    isExam = rm.isExam == true,
+                                    controlFormName = rm.controlFormName,
+                                    comment = rm.comment,
+                                    createdAt = rm.createdAt
+                                )
+                            }.sortedWith(
+                                compareByDescending<MarkItem> { it.createdAt ?: it.date }
+                                    .thenByDescending { it.id.toLongOrNull() ?: 0L }
+                            )
+                        } else {
+                            // Иначе берем последние оценки из /subject_marks/short
+                            subj.marks.orEmpty().map { m ->
+                                val mid = m.id?.toString() ?: ""
+                                val detailed = rawMarksMap[mid]
+                                val rawStr = m.value?.trim() ?: detailed?.value?.trim() ?: ""
+                                val isPt = m.isPoint == true || detailed?.isPoint == true || !m.pointDate.isNullOrBlank() || !detailed?.pointDate.isNullOrBlank() || rawStr.endsWith(".") || rawStr == "."
+                                val cleanVal = rawStr.removeSuffix(".").toIntOrNull() ?: if (isPt) 0 else 5
+                                val ptDate = detailed?.pointDate ?: m.pointDate
+                                MarkItem(
+                                    id = mid,
+                                    subject = sName,
+                                    subjectId = detailed?.subjectId ?: sId,
+                                    value = cleanVal,
+                                    rawValue = rawStr,
+                                    isPoint = isPt,
+                                    pointDate = ptDate,
+                                    weight = detailed?.weight ?: m.weight ?: 1.0,
+                                    date = detailed?.date ?: m.date ?: "",
+                                    topic = detailed?.controlFormName ?: m.controlFormName ?: detailed?.comment ?: m.comment ?: "",
+                                    isExam = detailed?.isExam ?: (m.isExam == true),
+                                    controlFormName = detailed?.controlFormName ?: m.controlFormName,
+                                    comment = detailed?.comment ?: m.comment,
+                                    createdAt = detailed?.createdAt
+                                )
+                            }
+                        }
+
                         SubjectSummary(
-                            subject = subj.subjectName ?: "Предмет",
-                            subjectId = subj.subjectId ?: 0L,
+                            subject = sName.ifBlank { "Предмет" },
+                            subjectId = sId,
                             averageMark = avg,
                             marks = marksList,
                             targetMark = 4.60
@@ -924,7 +963,16 @@ class MeshRepository(val sessionManager: SessionManager) {
 
                         val allLoadedMarks = summaries.flatMap { it.marks }.filter { !it.isPoint && it.value in 2..5 }
                         val overallGpa = if (allLoadedMarks.isNotEmpty()) {
-                            allLoadedMarks.map { it.value }.average()
+                            if (sessionManager.showWeightedGpa) {
+                                val totalWeight = allLoadedMarks.sumOf { it.weight }
+                                if (totalWeight > 0.0) {
+                                    allLoadedMarks.sumOf { it.value * it.weight } / totalWeight
+                                } else {
+                                    allLoadedMarks.map { it.value }.average()
+                                }
+                            } else {
+                                allLoadedMarks.map { it.value }.average()
+                            }
                         } else {
                             val validGpas = summaries.map { it.averageMark }.filter { it > 0.0 }
                             if (validGpas.isNotEmpty()) validGpas.average() else _studentProfile.value.gpa

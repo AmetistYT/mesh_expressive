@@ -56,15 +56,36 @@ val MdSurfaceContainerDark = Color(0xFF211F26)
 val MdSurfaceContainerHighDark = Color(0xFF2B2930)
 val MdSurfaceContainerHighestDark = Color(0xFF36343B)
 
-// Accent & Score Colors
-val ScoreGreen = Color(0xFF2E7D32)
-val ScoreGreenContainer = Color(0xFFC8E6C9)
-val ScoreBlue = Color(0xFF1565C0)
-val ScoreBlueContainer = Color(0xFFBBDEFB)
-val ScoreOrange = Color(0xFFE65100)
-val ScoreOrangeContainer = Color(0xFFFFE0B2)
-val ScoreRed = Color(0xFFC62828)
-val ScoreRedContainer = Color(0xFFFFCDD2)
+// Accent & Score Colors (Official MESH Palette matching light/dark modes)
+val ScoreGreenLight = Color(0xFF2E7D32)
+val ScoreGreenContainerLight = Color(0xFFE8F5E9)
+val ScoreGreenDark = Color(0xFF81C784)
+val ScoreGreenContainerDark = Color(0xFF1B3B1D)
+
+val ScoreBlueLight = Color(0xFF1565C0)
+val ScoreBlueContainerLight = Color(0xFFE3F2FD)
+val ScoreBlueDark = Color(0xFF64B5F6)
+val ScoreBlueContainerDark = Color(0xFF132F52)
+
+val ScoreOrangeLight = Color(0xFFE65100)
+val ScoreOrangeContainerLight = Color(0xFFFFF3E0)
+val ScoreOrangeDark = Color(0xFFFFB74D)
+val ScoreOrangeContainerDark = Color(0xFF422812)
+
+val ScoreRedLight = Color(0xFFC62828)
+val ScoreRedContainerLight = Color(0xFFFFEBEE)
+val ScoreRedDark = Color(0xFFE57373)
+val ScoreRedContainerDark = Color(0xFF3E1E22)
+
+// Legacy fallbacks
+val ScoreGreen = ScoreGreenLight
+val ScoreGreenContainer = ScoreGreenContainerLight
+val ScoreBlue = ScoreBlueLight
+val ScoreBlueContainer = ScoreBlueContainerLight
+val ScoreOrange = ScoreOrangeLight
+val ScoreOrangeContainer = ScoreOrangeContainerLight
+val ScoreRed = ScoreRedLight
+val ScoreRedContainer = ScoreRedContainerLight
 
 val StarGold = Color(0xFFFFB300)
 val StarGoldContainer = Color(0xFFFFF8E1)

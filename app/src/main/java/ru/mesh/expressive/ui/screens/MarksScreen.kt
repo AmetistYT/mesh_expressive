@@ -2,9 +2,12 @@ package ru.mesh.expressive.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,14 +40,23 @@ import kotlin.math.ceil
 @Composable
 fun MarksScreen(viewModel: MeshMainViewModel) {
     val subjectSummaries by viewModel.subjectSummaries.collectAsState()
-    val profile by viewModel.studentProfile.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val viewMode by viewModel.marksViewMode.collectAsState()
     val showWeightedGpa by viewModel.showWeightedGpa.collectAsState()
     var showCalculatorDialog by remember { mutableStateOf(false) }
     var selectedSubjectForCalc by remember { mutableStateOf<SubjectSummary?>(null) }
 
-    // Flatten all marks grouped by date
+    val periodsSchedules by viewModel.periodsSchedules.collectAsState()
+
+    // Находим актуальную четверть/период из расписания периодов или дефолтное название
+    val currentPeriodTitle = remember(periodsSchedules) {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val found = periodsSchedules.firstOrNull { it.date == today && !it.title.isNullOrBlank() }
+            ?: periodsSchedules.firstOrNull { !it.title.isNullOrBlank() }
+        found?.title ?: "1-я четверть 2026/2027 учебного года"
+    }
+
+    // Все оценки, сгруппированные по датам
     val allMarksGroupedByDate = remember(subjectSummaries) {
         subjectSummaries.flatMap { it.marks }
             .groupBy { it.date }
@@ -51,25 +64,29 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
             .sortedByDescending { it.first }
     }
 
-    val gpaLabel = if (showWeightedGpa) "Средневзвешенный балл" else "Средний балл (арифм.)"
-    val activeGpa = remember(subjectSummaries, profile.gpa, showWeightedGpa) {
-        val allMarks = subjectSummaries.flatMap { it.marks }
-        if (allMarks.isNotEmpty()) {
-            if (showWeightedGpa) {
-                val totalWeight = allMarks.sumOf { it.weight }
-                if (totalWeight > 0.0) {
-                    allMarks.sumOf { it.value * it.weight } / totalWeight
+    // Оценки, которые можно исправить в будущем (точки с актуальным сроком сдачи сегодня или позже)
+    val fixableMarks = remember(subjectSummaries) {
+        val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        subjectSummaries.flatMap { it.marks }
+            .filter { mark ->
+                val hasPoint = mark.isPoint || !mark.pointDate.isNullOrBlank() || mark.rawValue.endsWith(".") || mark.rawValue == "."
+                if (!hasPoint) return@filter false
+                val pDate = mark.pointDate?.substringBefore("T")?.trim()
+                if (pDate.isNullOrBlank()) {
+                    true
                 } else {
-                    allMarks.map { it.value }.average()
+                    pDate >= todayStr
                 }
-            } else {
-                allMarks.map { it.value }.average()
             }
-        } else if (subjectSummaries.isNotEmpty()) {
-            val avgs = subjectSummaries.map { it.getEffectiveAverage(showWeightedGpa) }.filter { it > 0.0 }
-            if (avgs.isNotEmpty()) avgs.average() else profile.gpa
-        } else profile.gpa
+            .distinctBy { if (it.id.isNotBlank()) it.id else "${it.subject}_${it.date}_${it.value}" }
+            .sortedWith(
+                compareBy<MarkItem> { it.pointDate ?: "9999-99-99" }
+                    .thenByDescending { it.date }
+            )
     }
+
+    val gpaLabel = if (showWeightedGpa) "Средневзвешенный балл" else "Средний балл (арифм.)"
+    val activeGpa by viewModel.activeGpa.collectAsState()
 
     ExpressivePullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -117,9 +134,9 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            if (profile.gpa > 0.0) {
+                            if (activeGpa > 0.0) {
                                 M3WavyProgressIndicator(
-                                    progress = (profile.gpa / 5.0).toFloat().coerceIn(0f, 1f),
+                                    progress = (activeGpa / 5.0).toFloat().coerceIn(0f, 1f),
                                     color = MaterialTheme.colorScheme.primary,
                                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                                     amplitude = 4f,
@@ -129,7 +146,7 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                             }
 
                             Text(
-                                text = "1-я четверть 2026/2027 учебного года",
+                                text = currentPeriodTitle,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                             )
@@ -197,15 +214,32 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
                         )
                     }
                 } else {
-                    // Grouped by Date (по числу)
+                    // 1. Сверху отображаем карточку оценок, которые можно исправить (точки и задолженности)
+                    if (fixableMarks.isNotEmpty()) {
+                        item(key = "fixable_marks_top") {
+                            FixableMarksGroupCard(
+                                fixableMarks = fixableMarks,
+                                onMarkClick = { viewModel.openMarkDetails(it) }
+                            )
+                        }
+                    }
+
+                    // 2. Grouped by Date (по числу)
                     items(
                         items = allMarksGroupedByDate,
                         key = { it.first },
                         contentType = { "dateGroup" }
                     ) { (date, marks) ->
+                        // Внутри дня также поднимаем наверх оценки, требующие исправления
+                        val sortedDayMarks = remember(marks) {
+                            marks.sortedWith(
+                                compareByDescending<MarkItem> { it.isPoint || !it.pointDate.isNullOrBlank() || it.rawValue.endsWith(".") }
+                                    .thenByDescending { it.createdAt ?: it.id }
+                            )
+                        }
                         DateMarksGroupCard(
                             date = date,
-                            marks = marks,
+                            marks = sortedDayMarks,
                             onMarkClick = { viewModel.openMarkDetails(it) }
                         )
                     }
@@ -329,6 +363,195 @@ fun MarksScreen(viewModel: MeshMainViewModel) {
 
 
 @Composable
+fun FixableMarksGroupCard(
+    fixableMarks: List<MarkItem>,
+    onMarkClick: ((MarkItem) -> Unit)? = null
+) {
+    var isExpanded by remember { mutableStateOf(true) }
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 600f),
+        label = "fixable_arrow_rotation"
+    )
+
+    val isDark = isSystemInDarkTheme()
+    val cardBg = if (isDark) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLow
+    val itemBg = if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface
+    val redContent = if (isDark) Color(0xFFFF7C83) else Color(0xFFC62828)
+    val redPillBg = if (isDark) Color(0xFFE94255).copy(alpha = 0.22f) else Color(0xFFFFEBEE)
+    val pointBadgeBg = if (isDark) Color(0xFF2C2218) else Color(0xFFFFF3E0)
+    val pointBadgeBorder = if (isDark) Color(0xFFFB843D).copy(alpha = 0.35f) else Color(0xFFFFCC80)
+    val pointTextColor = if (isDark) Color(0xFFFFB74D) else Color(0xFFE65100)
+    val dotColor = if (isDark) Color(0xFFFF5252) else Color(0xFFD32F2F)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveCardShape,
+        colors = CardDefaults.cardColors(
+            containerColor = cardBg
+        ),
+        border = BorderStroke(1.dp, redContent.copy(alpha = if (isDark) 0.3f else 0.2f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { isExpanded = !isExpanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.PriorityHigh,
+                        contentDescription = null,
+                        tint = redContent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Можно исправить",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = PillShape,
+                        color = redPillBg
+                    ) {
+                        Text(
+                            text = "${fixableMarks.size} ${if (fixableMarks.size == 1) "оценка" else "оценок"}",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = redContent
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = { isExpanded = !isExpanded },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isExpanded) "Свернуть" else "Развернуть",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.rotate(arrowRotation)
+                        )
+                    }
+                }
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
+                Column(
+                    modifier = Modifier.padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    fixableMarks.forEach { mark ->
+                        val formattedPointDate = if (!mark.pointDate.isNullOrBlank()) ru.mesh.expressive.util.DateUtils.formatPointDate(mark.pointDate) else null
+                        val markRelativeDate = ru.mesh.expressive.util.DateUtils.formatRelativeDate(mark.date)
+                        val markDisplayVal = if (mark.value > 0) "${mark.value}" else "•"
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(itemBg)
+                                .then(if (onMarkClick != null) Modifier.clickable { onMarkClick(mark) } else Modifier)
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = mark.subject,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (mark.topic.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = mark.topic,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = PillShape,
+                                        color = redPillBg
+                                    ) {
+                                        Text(
+                                            text = if (!formattedPointDate.isNullOrBlank()) "Точка до $formattedPointDate" else "Точка",
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = redContent
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "за $markRelativeDate",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (mark.weight > 1.0) {
+                                    Surface(
+                                        shape = PillShape,
+                                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Вес ${mark.weight}",
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier.size(38.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = pointBadgeBg,
+                                    border = BorderStroke(1.dp, pointBadgeBorder)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = markDisplayVal,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 17.sp,
+                                            color = pointTextColor
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(top = 4.dp, end = 4.dp)
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(dotColor)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun DateMarksGroupCard(
     date: String,
     marks: List<MarkItem>,
@@ -389,8 +612,7 @@ fun DateMarksGroupCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        val isPoint = mark.isPoint || mark.rawValue.endsWith(".") || mark.rawValue == "."
-                        val displayVal = if (isPoint) (mark.rawValue.ifBlank { if (mark.value > 0) "${mark.value}." else "•" }) else "${mark.value}"
+                        val isPoint = mark.isPoint || !mark.pointDate.isNullOrBlank() || mark.rawValue.endsWith(".") || mark.rawValue == "."
                         val formattedPointDate = if (isPoint && !mark.pointDate.isNullOrBlank()) ru.mesh.expressive.util.DateUtils.formatPointDate(mark.pointDate) else null
 
                         Column(modifier = Modifier.weight(1f)) {
@@ -408,16 +630,18 @@ fun DateMarksGroupCard(
                             }
                             if (isPoint) {
                                 Spacer(modifier = Modifier.height(2.dp))
+                                val redPillBg = if (isSystemInDarkTheme()) Color(0xFFE94255).copy(alpha = 0.22f) else Color(0xFFFFEBEE)
+                                val redContent = if (isSystemInDarkTheme()) Color(0xFFFF7C83) else Color(0xFFC62828)
                                 Surface(
                                     shape = PillShape,
-                                    color = ScoreOrange
+                                    color = redPillBg
                                 ) {
                                     Text(
                                         text = if (!formattedPointDate.isNullOrBlank()) "Точка до $formattedPointDate" else "Точка",
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = redContent
                                     )
                                 }
                             }
@@ -440,27 +664,42 @@ fun DateMarksGroupCard(
                                 }
                             }
 
+                            val isDark = isSystemInDarkTheme()
                             val (bgColor, textColor) = when {
-                                isPoint -> ScoreOrangeContainer to ScoreOrange
-                                mark.value == 5 -> ScoreGreenContainer to ScoreGreen
-                                mark.value == 4 -> ScoreBlueContainer to ScoreBlue
-                                mark.value == 3 -> ScoreOrangeContainer to ScoreOrange
-                                else -> ScoreRedContainer to ScoreRed
+                                isPoint -> (if (isDark) Color(0xFF2C2218) else Color(0xFFFFF3E0)) to (if (isDark) Color(0xFFFFB74D) else Color(0xFFE65100))
+                                mark.value == 5 -> (if (isDark) ScoreGreenContainerDark else ScoreGreenContainerLight) to (if (isDark) ScoreGreenDark else ScoreGreenLight)
+                                mark.value == 4 -> (if (isDark) ScoreBlueContainerDark else ScoreBlueContainerLight) to (if (isDark) ScoreBlueDark else ScoreBlueLight)
+                                mark.value == 3 -> (if (isDark) ScoreOrangeContainerDark else ScoreOrangeContainerLight) to (if (isDark) ScoreOrangeDark else ScoreOrangeLight)
+                                else -> (if (isDark) ScoreRedContainerDark else ScoreRedContainerLight) to (if (isDark) ScoreRedDark else ScoreRedLight)
                             }
 
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(bgColor),
-                                contentAlignment = Alignment.Center
+                            val pointBorder = if (isPoint) BorderStroke(1.dp, if (isDark) Color(0xFFFB843D).copy(alpha = 0.35f) else Color(0xFFFFCC80)) else null
+                            val markDisplayVal = if (isPoint) (if (mark.value > 0) "${mark.value}" else "•") else "${mark.value}"
+
+                            Surface(
+                                modifier = Modifier.size(36.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                color = bgColor,
+                                border = pointBorder
                             ) {
-                                Text(
-                                    text = displayVal,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = if (displayVal.length > 2) 13.sp else 16.sp,
-                                    color = textColor
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = markDisplayVal,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = textColor
+                                    )
+                                    if (isPoint) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(top = 3.dp, end = 3.dp)
+                                                .size(5.5.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isDark) Color(0xFFFF5252) else Color(0xFFD32F2F))
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -578,7 +817,13 @@ fun SubjectMarksCard(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        subjectSummary.marks.forEach { mark ->
+                        val sortedSubjectMarks = remember(subjectSummary.marks) {
+                            subjectSummary.marks.sortedWith(
+                                compareByDescending<MarkItem> { it.isPoint || !it.pointDate.isNullOrBlank() || it.rawValue.endsWith(".") }
+                                    .thenByDescending { it.createdAt ?: it.date }
+                            )
+                        }
+                        sortedSubjectMarks.forEach { mark ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -589,9 +834,12 @@ fun SubjectMarksCard(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                val isPoint = mark.isPoint || mark.rawValue.endsWith(".") || mark.rawValue == "."
-                                val displayVal = if (isPoint) (mark.rawValue.ifBlank { if (mark.value > 0) "${mark.value}." else "•" }) else "${mark.value}"
+                                val isPoint = mark.isPoint || !mark.pointDate.isNullOrBlank() || mark.rawValue.endsWith(".") || mark.rawValue == "."
                                 val formattedPointDate = if (isPoint && !mark.pointDate.isNullOrBlank()) ru.mesh.expressive.util.DateUtils.formatPointDate(mark.pointDate) else null
+
+                                val isDark = isSystemInDarkTheme()
+                                val redPillBg = if (isDark) Color(0xFFE94255).copy(alpha = 0.22f) else Color(0xFFFFEBEE)
+                                val redContent = if (isDark) Color(0xFFFF7C83) else Color(0xFFC62828)
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
@@ -604,7 +852,7 @@ fun SubjectMarksCard(
                                         if (isPoint) {
                                             Surface(
                                                 shape = PillShape,
-                                                color = ScoreOrange,
+                                                color = redPillBg,
                                                 modifier = Modifier.padding(end = 6.dp)
                                             ) {
                                                 Text(
@@ -612,7 +860,7 @@ fun SubjectMarksCard(
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                                                     style = MaterialTheme.typography.labelSmall,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color.White
+                                                    color = redContent
                                                 )
                                             }
                                         }
@@ -625,25 +873,39 @@ fun SubjectMarksCard(
                                 }
 
                                 val (bg, fg) = when {
-                                    isPoint -> ScoreOrangeContainer to ScoreOrange
-                                    mark.value == 5 -> ScoreGreenContainer to ScoreGreen
-                                    mark.value == 4 -> ScoreBlueContainer to ScoreBlue
-                                    mark.value == 3 -> ScoreOrangeContainer to ScoreOrange
-                                    else -> ScoreRedContainer to ScoreRed
+                                    isPoint -> (if (isDark) Color(0xFF2C2218) else Color(0xFFFFF3E0)) to (if (isDark) Color(0xFFFFB74D) else Color(0xFFE65100))
+                                    mark.value == 5 -> (if (isDark) ScoreGreenContainerDark else ScoreGreenContainerLight) to (if (isDark) ScoreGreenDark else ScoreGreenLight)
+                                    mark.value == 4 -> (if (isDark) ScoreBlueContainerDark else ScoreBlueContainerLight) to (if (isDark) ScoreBlueDark else ScoreBlueLight)
+                                    mark.value == 3 -> (if (isDark) ScoreOrangeContainerDark else ScoreOrangeContainerLight) to (if (isDark) ScoreOrangeDark else ScoreOrangeLight)
+                                    else -> (if (isDark) ScoreRedContainerDark else ScoreRedContainerLight) to (if (isDark) ScoreRedDark else ScoreRedLight)
                                 }
 
+                                val pointBorder = if (isPoint) BorderStroke(1.dp, if (isDark) Color(0xFFFB843D).copy(alpha = 0.35f) else Color(0xFFFFCC80)) else null
+                                val markDisplayVal = if (isPoint) (if (mark.value > 0) "${mark.value}" else "•") else "${mark.value}"
+
                                 Surface(
-                                    shape = CircleShape,
+                                    modifier = Modifier.size(34.dp),
+                                    shape = RoundedCornerShape(9.dp),
                                     color = bg,
-                                    modifier = Modifier.size(32.dp)
+                                    border = pointBorder
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
-                                            text = displayVal,
+                                            text = markDisplayVal,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = if (displayVal.length > 2) 13.sp else 15.sp,
+                                            fontSize = 15.sp,
                                             color = fg
                                         )
+                                        if (isPoint) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(top = 2.5.dp, end = 2.5.dp)
+                                                    .size(5.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (isDark) Color(0xFFFF5252) else Color(0xFFD32F2F))
+                                            )
+                                        }
                                     }
                                 }
                             }

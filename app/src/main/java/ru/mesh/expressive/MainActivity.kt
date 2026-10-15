@@ -167,6 +167,7 @@ fun MeshMainApp(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val profile by viewModel.studentProfile.collectAsState()
+    val activeGpa by viewModel.activeGpa.collectAsState()
     val view = LocalView.current
     val context = LocalContext.current
 
@@ -385,13 +386,13 @@ fun MeshMainApp(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    if (profile.gpa > 0.0) {
+                                    if (activeGpa > 0.0) {
                                         Surface(
                                             shape = PillShape,
                                             color = MaterialTheme.colorScheme.primaryContainer
                                         ) {
                                             Text(
-                                                text = String.format(java.util.Locale.US, "%.2f", profile.gpa),
+                                                text = String.format(java.util.Locale.US, "%.2f", activeGpa),
                                                 style = MaterialTheme.typography.labelMedium,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer,

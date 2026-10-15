@@ -48,6 +48,7 @@ fun DashboardScreen(
     val dashboardDay by viewModel.dashboardDay.collectAsState()
     val isCompactSchedule by viewModel.isCompactSchedule.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val activeGpa by viewModel.activeGpa.collectAsState()
 
     val nextSchoolDayInfo = remember {
         val cal = java.util.Calendar.getInstance()
@@ -291,10 +292,10 @@ fun DashboardScreen(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (profile.gpa > 0.0) String.format(java.util.Locale.getDefault(), "%.2f", profile.gpa) else "—",
+                                text = if (activeGpa > 0.0) String.format(java.util.Locale.getDefault(), "%.2f", activeGpa) else "—",
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (profile.gpa > 0.0) ScoreGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (activeGpa > 0.0) ScoreGreen else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
@@ -304,9 +305,9 @@ fun DashboardScreen(
                                 .height(22.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
-                            if (profile.gpa > 0.0) {
+                            if (activeGpa > 0.0) {
                                 M3WavyProgressIndicator(
-                                    progress = (profile.gpa / 5.0).toFloat().coerceIn(0f, 1f),
+                                    progress = (activeGpa / 5.0).toFloat().coerceIn(0f, 1f),
                                     color = ScoreGreen,
                                     strokeWidth = 3.5.dp,
                                     amplitude = 2.5f,
